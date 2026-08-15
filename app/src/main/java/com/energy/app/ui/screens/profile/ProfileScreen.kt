@@ -1,10 +1,8 @@
 package com.energy.app.ui.screens.profile
 
-import android.Manifest
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,37 +17,31 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.energy.app.data.cloud.CloudStatus
+import com.energy.app.data.settings.Accent
+import com.energy.app.data.settings.GpsMode
+import com.energy.app.data.settings.Haptics
+import com.energy.app.data.settings.RoutePrivacy
 import com.energy.app.data.settings.ThemeMode
 import com.energy.app.data.settings.Units
 import com.energy.app.data.workout.WorkoutMath
-import com.energy.app.ui.components.EnergyButton
 import com.energy.app.ui.components.Metric
 import com.energy.app.ui.components.SectionHeader
 import com.energy.app.ui.theme.EnergyCoral
@@ -58,20 +50,27 @@ import com.energy.app.ui.theme.MetaLabel
 import com.energy.app.ui.theme.Space
 
 /**
- * PROFILE (§25) — a personal control center: identity + lifetime numbers up
- * top, grouped settings below. Sections with hairline dividers, not a form.
+ * PROFILE (§39) — the control center. Identity + lifetime stats, quick
+ * inline controls (theme/accent/haptics/units), then grouped navigation
+ * into deep settings screens. Defaults keep it usable with zero config.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onSignOut: () -> Unit,
     onOpenContact: () -> Unit = {},
+    onOpenWorkoutSettings: () -> Unit = {},
+    onOpenDisplay: () -> Unit = {},
+    onOpenAudio: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
+    onOpenMaps: () -> Unit = {},
+    onOpenHealth: () -> Unit = {},
+    onOpenPrivacy: () -> Unit = {},
+    onOpenData: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
     viewModel: ProfileViewModel = viewModel()
 ) {
-    val context = LocalContext.current
     val signedOut by viewModel.signedOut.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
-    val alarm by viewModel.alarm.collectAsState()
     val user by viewModel.user.collectAsState()
     val userData = user
     val lifetime by viewModel.lifetime.collectAsState()
@@ -80,15 +79,7 @@ fun ProfileScreen(
     val streak by viewModel.streak.collectAsState()
     val prefs by viewModel.preferences.collectAsState()
 
-    var showTimePicker by remember { mutableStateOf(false) }
-
-    val notificationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { }
-
-    LaunchedEffect(signedOut) {
-        if (signedOut) onSignOut()
-    }
+    LaunchedEffect(signedOut) { if (signedOut) onSignOut() }
 
     Column(
         modifier = Modifier
@@ -104,7 +95,14 @@ fun ProfileScreen(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(EnergyOrange, EnergyCoral))),
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                if (prefs.accent == Accent.ORANGE) EnergyOrange else EnergyCoral,
+                                EnergyCoral
+                            )
+                        )
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -131,9 +129,9 @@ fun ProfileScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "🔥 $streak day streak · ${activityLevel(lifetime)}",
+                    text = "🔥 $streak day streak · ${activityLevel(lifetime)} · ${prefs.fitnessLevel.label}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = EnergyOrange,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
@@ -157,122 +155,120 @@ fun ProfileScreen(
             )
         }
 
+        // ── QUICK CONTROLS (inline — no need to open screens) ─────────────
         Spacer(Modifier.height(Space.XXL))
+        SettingsSection(label = "Appearance")
+        ChipRow(
+            options = ThemeMode.entries,
+            labelOf = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
+            selected = themeMode,
+            onSelect = { viewModel.setThemeMode(it) }
+        )
+        Spacer(Modifier.height(Space.SM))
+        ChipRow(
+            options = Accent.entries,
+            labelOf = { if (it == Accent.ORANGE) "Orange" else "Coral" },
+            selected = prefs.accent,
+            onSelect = { viewModel.setAccent(it) }
+        )
+        Spacer(Modifier.height(Space.SM))
+        ChipRow(
+            options = Haptics.entries,
+            labelOf = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
+            selected = prefs.haptics,
+            onSelect = { viewModel.setHaptics(it) }
+        )
+        Spacer(Modifier.height(Space.SM))
+        ChipRow(
+            options = Units.entries,
+            labelOf = { if (it == Units.METRIC) "Metric · km" else "Imperial · mi" },
+            selected = prefs.units,
+            onSelect = { viewModel.setUnits(it) }
+        )
+        Spacer(Modifier.height(Space.SM))
+        ToggleRow(
+            title = "Visual effects",
+            sub = "Aurora background and entry animations",
+            checked = prefs.visualEffects,
+            onToggle = { viewModel.setVisualEffects(it) }
+        )
 
-        // ── GOALS ─────────────────────────────────────────────────────────
-        SectionHeader(label = "Goals")
-        Spacer(Modifier.height(Space.XS))
-        StepperRow("Daily step goal", String.format("%,d", prefs.stepGoal),
+        // ── PERSONAL ──────────────────────────────────────────────────────
+        SettingsSection(label = "Goals", explain = "Your daily targets — used by rings, score and insights.")
+        StepperRow("Step goal", "${prefs.stepGoal / 1000}K",
             onMinus = { viewModel.setStepGoal(prefs.stepGoal - 1_000) },
             onPlus = { viewModel.setStepGoal(prefs.stepGoal + 1_000) })
-        StepperRow("Daily calorie goal", "${prefs.calorieGoal} kcal",
+        StepperRow("Calorie goal", "${prefs.calorieGoal} kcal",
             onMinus = { viewModel.setCalorieGoal(prefs.calorieGoal - 50) },
             onPlus = { viewModel.setCalorieGoal(prefs.calorieGoal + 50) })
         StepperRow("Weight", "${prefs.weightKg} kg",
             onMinus = { viewModel.setWeightKg(prefs.weightKg - 1) },
             onPlus = { viewModel.setWeightKg(prefs.weightKg + 1) })
+        StepperRow("Height", "${prefs.heightCm} cm",
+            onMinus = { viewModel.setHeightCm(prefs.heightCm - 1) },
+            onPlus = { viewModel.setHeightCm(prefs.heightCm + 1) })
 
-        Spacer(Modifier.height(Space.XXL))
+        SettingsSection(label = "Personal")
+        NavRow("Fitness profile", prefs.fitnessLevel.label,
+            onClick = onOpenWorkoutSettings)
 
         // ── WORKOUT ───────────────────────────────────────────────────────
-        SectionHeader(label = "Workout")
-        Spacer(Modifier.height(Space.XS))
-        ToggleRow(
-            title = "Auto-pause workouts",
-            sub = "Pause when you stop moving",
-            checked = prefs.autoPause,
-            onToggle = { viewModel.setAutoPause(it) }
+        SettingsSection(label = "Workout")
+        NavRow("Workout settings", summaryOfWorkout(prefs), onClick = onOpenWorkoutSettings)
+        NavRow("Workout display", prefs.metricPreset.name.lowercase().replaceFirstChar { it.uppercase() },
+            onClick = onOpenDisplay)
+        NavRow("Audio & coaching", if (prefs.audioCues) prefs.announceInterval.label else "Off",
+            onClick = onOpenAudio)
+        NavRow("Maps & GPS", prefs.gpsMode.label, onClick = onOpenMaps)
+
+        // ── HEALTH ────────────────────────────────────────────────────────
+        SettingsSection(label = "Health")
+        NavRow("Health Connect", cloudHealthPlaceholder(), onClick = onOpenHealth)
+        NavRow("Privacy & location", prefs.routePrivacy.label, onClick = onOpenPrivacy)
+
+        // ── NOTIFICATIONS ─────────────────────────────────────────────────
+        SettingsSection(label = "Notifications")
+        NavRow("Notifications & reminders", quietSummary(prefs), onClick = onOpenNotifications)
+
+        // ── DATA ──────────────────────────────────────────────────────────
+        SettingsSection(label = "Data & sync")
+        NavRow(
+            "Data, export & storage",
+            when {
+                cloud.status == CloudStatus.SIGNED_IN || cloud.status == CloudStatus.SYNCED -> "Cloud on"
+                pendingSync > 0 -> "$pendingSync waiting to sync"
+                else -> "Local · works offline"
+            },
+            onClick = onOpenData
         )
-        ToggleRow(
-            title = "Battery saver",
-            sub = "Wider GPS intervals while idle",
-            checked = prefs.batterySaver,
-            onToggle = { viewModel.setBatterySaver(it) }
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = Space.SM),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Units", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            FilterChip(selected = prefs.units == Units.METRIC,
-                onClick = { viewModel.setUnits(Units.METRIC) }, label = { Text("km") })
-            Spacer(Modifier.width(Space.XS))
-            FilterChip(selected = prefs.units == Units.IMPERIAL,
-                onClick = { viewModel.setUnits(Units.IMPERIAL) }, label = { Text("mi") })
-        }
 
-        Spacer(Modifier.height(Space.XXL))
+        // ── ACCOUNT ───────────────────────────────────────────────────────
+        SettingsSection(label = "Account")
+        NavRow("Help & support", "FAQ · GPS · Health Connect", onClick = onOpenContact)
+        NavRow("About Energy", "v0.6.0", onClick = onOpenAbout)
 
-        // ── APPEARANCE ────────────────────────────────────────────────────
-        SectionHeader(label = "Appearance")
-        Spacer(Modifier.height(Space.XS))
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.XS)) {
-            ThemeMode.entries.forEach { mode ->
-                FilterChip(
-                    selected = themeMode == mode,
-                    onClick = { viewModel.setThemeMode(mode) },
-                    label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
-                )
-            }
-        }
-
-        Spacer(Modifier.height(Space.XXL))
-
-        // ── REMINDER ──────────────────────────────────────────────────────
-        SectionHeader(label = "Exercise reminder")
-        Spacer(Modifier.height(Space.XS))
-        ToggleRow(
-            title = "Daily workout reminder",
-            sub = if (alarm.enabled)
-                "Every day at ${String.format("%02d:%02d", alarm.hour, alarm.minute)}"
-            else "Nudge me to move at the same time every day",
-            checked = alarm.enabled,
-            onToggle = { enabled ->
-                if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-                viewModel.setAlarmEnabled(enabled)
-            }
-        )
-        if (alarm.enabled) {
-            TextButton(onClick = { showTimePicker = true }) {
-                Text("Change time", color = MaterialTheme.colorScheme.primary)
-            }
-        }
-
-        // ── CLOUD ─────────────────────────────────────────────────────────
-        if (cloud.status != CloudStatus.NOT_CONFIGURED) {
-            Spacer(Modifier.height(Space.XXL))
-            SectionHeader(label = "Cloud sync")
-            Spacer(Modifier.height(Space.XS))
-            Text(
-                text = when (cloud.status) {
-                    CloudStatus.SIGNED_IN, CloudStatus.SYNCED ->
-                        "Signed in as ${cloud.userEmail ?: "your account"}"
-                    CloudStatus.SIGNED_OUT -> "Not signed in — workouts stay on this device"
-                    else -> "Syncing…"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (pendingSync > 0) {
-                TextButton(onClick = { viewModel.retryPendingSync() }) {
-                    Text("Retry $pendingSync pending sync", color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-
-        Spacer(Modifier.height(Space.XXL))
+        Spacer(Modifier.height(Space.XL))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(Modifier.height(Space.MD))
-        TextButton(onClick = onOpenContact) { Text("Help & contact") }
-        EnergyButton(
+
+        Text(
             text = "Sign out",
-            onClick = { viewModel.signOut() },
-            modifier = Modifier.fillMaxWidth()
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { viewModel.signOut() }
+                )
+                .padding(vertical = Space.SM),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
-            text = "Energy 0.5.1 · local-first · MapLibre + OpenFreeMap",
+            text = "Energy 0.6.0 · local-first · MapLibre + OpenFreeMap",
             style = MetaLabel,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
@@ -281,35 +277,29 @@ fun ProfileScreen(
         )
         Spacer(Modifier.height(Space.LG))
     }
-
-    if (showTimePicker) {
-        val pickerState = rememberTimePickerState(
-            initialHour = alarm.hour,
-            initialMinute = alarm.minute,
-            is24Hour = false
-        )
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.setAlarmTime(pickerState.hour, pickerState.minute)
-                    showTimePicker = false
-                }) { Text("Set") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
-            },
-            text = { TimePicker(state = pickerState) }
-        )
-    }
 }
+
+private fun cloudHealthPlaceholder(): String = "Steps · HR · sleep"
+
+private fun summaryOfWorkout(p: com.energy.app.data.settings.UserPreferences): String =
+    listOfNotNull(
+        if (p.autoPause) "auto-pause" else null,
+        p.gpsMode.label.lowercase(),
+        "countdown ${p.countdownSeconds}s"
+    ).joinToString(" · ")
+
+private fun quietSummary(p: com.energy.app.data.settings.UserPreferences): String =
+    if (p.quietHoursEnabled)
+        "Quiet ${String.format("%02d:%02d", p.quietStart / 100, p.quietStart % 100)}–" +
+            String.format("%02d:%02d", p.quietEnd / 100, p.quietEnd % 100)
+    else "Reminder · goals · streaks"
 
 @Composable
 private fun StepperRow(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Space.SM),
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
@@ -323,30 +313,10 @@ private fun StepperRow(label: String, value: String, onMinus: () -> Unit, onPlus
     }
 }
 
-@Composable
-private fun ToggleRow(title: String, sub: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = Space.SM),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                sub,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Switch(checked = checked, onCheckedChange = onToggle)
-    }
-}
-
-private fun activityLevel(lifetime: com.energy.app.data.stats.LifetimeStats): String = when {
-    lifetime.workoutCount >= 100 -> "Seasoned athlete"
-    lifetime.workoutCount >= 30 -> "Consistent mover"
-    lifetime.workoutCount >= 10 -> "Building the habit"
-    lifetime.workoutCount >= 1 -> "Getting started"
+private fun activityLevel(l: com.energy.app.data.stats.LifetimeStats): String = when {
+    l.workoutCount >= 100 -> "Seasoned athlete"
+    l.workoutCount >= 30 -> "Consistent mover"
+    l.workoutCount >= 10 -> "Building the habit"
+    l.workoutCount >= 1 -> "Getting started"
     else -> "First workout ahead"
 }

@@ -94,6 +94,19 @@ class WorkoutRepository(private val context: Context) {
         }
     }
 
+    /** Destructive: removes every workout (route files + metadata). */
+    suspend fun deleteAllWorkouts() {
+        withContext(Dispatchers.IO) {
+            pointsDir.listFiles()?.forEach { it.delete() }
+            pointsCache.clear()
+            context.workoutStore.edit { prefs ->
+                prefs[Keys.META] = WorkoutMetaCodec.encode(emptyList())
+                prefs.remove(Keys.META_BACKUP)
+                prefs.remove(Keys.LEGACY)
+            }
+        }
+    }
+
     /** Workouts still awaiting cloud sync (guest sessions skip sync). */
     suspend fun pendingSync(): List<SavedWorkout> {
         val metas = workouts.first()

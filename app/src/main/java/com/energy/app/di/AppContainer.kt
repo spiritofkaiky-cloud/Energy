@@ -64,6 +64,14 @@ class AppContainer(application: Application) {
 
     val googleSignInHelper: GoogleSignInHelper by lazy { GoogleSignInHelper(application) }
 
+    /** Destructive: wipes workouts, day path, stats and preferences. */
+    suspend fun eraseAllLocalData() {
+        workoutRepository.deleteAllWorkouts()
+        dayPathRepository.clearToday()
+        statsRepository.clearAll()
+        settingsRepository.resetAll()
+    }
+
     init {
         // Restore the signed-in user at startup so relaunches skip sign-in.
         applicationScope.launch {

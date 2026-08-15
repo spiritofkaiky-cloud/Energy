@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +67,7 @@ import com.energy.app.ui.theme.Radius
 import com.energy.app.ui.theme.RunColor
 import com.energy.app.ui.theme.Space
 import com.energy.app.ui.theme.WalkColor
+import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -88,7 +90,13 @@ fun ActivityScreen(
     val sessionType by workoutViewModel.type.collectAsState()
     val workouts by historyViewModel.workouts.collectAsState(initial = null)
 
+    val container = (context.applicationContext as com.energy.app.EnergyApplication).container
     var selected by remember { mutableStateOf(WorkoutType.RUN) }
+    LaunchedEffect(Unit) {
+        selected = runCatching {
+            container.settingsRepository.preferences.first()
+        }.getOrDefault(com.energy.app.data.settings.UserPreferences()).defaultWorkoutType
+    }
     var goal by remember { mutableStateOf("Open") }
     var filter by remember { mutableStateOf<WorkoutType?>(null) }
 

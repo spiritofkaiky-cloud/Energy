@@ -151,8 +151,8 @@ fun HomeScreen(
                     onResumeWorkout(workoutType)
                 },
                 shape = RoundedCornerShape(Radius.MD),
-                color = EnergyOrange.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, EnergyOrange.copy(alpha = 0.4f)),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = Space.MD)
@@ -168,7 +168,7 @@ fun HomeScreen(
                             text = if (workoutState == WorkoutState.PAUSED)
                                 "Workout paused — tap to resume" else "Workout in progress",
                             style = MaterialTheme.typography.titleSmall,
-                            color = EnergyOrange
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Text(
                             text = "Your session survives restarts.",
@@ -176,18 +176,21 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Text("→", color = EnergyOrange)
+                    Text("→", color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
 
         // ── Score hero (the centerpiece) ──────────────────────────────────
-        Spacer(Modifier.height(Space.XL))
-        ScoreHero(score = score, modifier = Modifier.fillMaxWidth())
+        if (prefs.homeScore) {
+            Spacer(Modifier.height(Space.XL))
+            ScoreHero(score = score, modifier = Modifier.fillMaxWidth())
+        }
 
         Spacer(Modifier.height(Space.XXL))
 
         // ── Daily insight (level 2 — personal guidance) ───────────────────
+        if (prefs.homeInsight) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
@@ -212,9 +215,12 @@ fun HomeScreen(
             }
         }
 
+        }
+
         Spacer(Modifier.height(Space.XXL))
 
         // ── Energy Ring + legend ──────────────────────────────────────────
+        if (prefs.homeRings) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -248,9 +254,12 @@ fun HomeScreen(
             }
         }
 
+        }
+
         Spacer(Modifier.height(Space.XXL))
 
         // ── Stat strip (level 2 numbers) ──────────────────────────────────
+        if (prefs.homeStats) {
         StatStrip(
             stats = listOf(
                 compact(today.steps.toDouble()) to "steps",
@@ -268,9 +277,12 @@ fun HomeScreen(
                 .alpha(0.8f)
         )
 
+        }
+
         Spacer(Modifier.height(Space.XXL))
 
         // ── Today's movement (edge-to-edge map object) ────────────────────
+        if (prefs.homeMap) {
         SectionHeader(
             label = "Today's movement",
             actionLabel = if (points.isNotEmpty()) "View full route →" else null,
@@ -331,7 +343,7 @@ fun HomeScreen(
                     ) {
                         Text(
                             text = if (tracking) "●" else "○",
-                            color = if (tracking) EnergyOrange else Color.White.copy(alpha = 0.7f),
+                            color = if (tracking) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.labelSmall
                         )
                         Spacer(Modifier.width(6.dp))
@@ -386,9 +398,12 @@ fun HomeScreen(
             }
         }
 
+        }
+
         Spacer(Modifier.height(Space.XXL))
 
         // ── Streak + health status (quiet footer rows) ────────────────────
+        if (prefs.homeStreak) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -397,7 +412,7 @@ fun HomeScreen(
                 text = "$streak",
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Light,
-                color = EnergyOrange
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(Space.SM))
             Column {
@@ -423,6 +438,8 @@ fun HomeScreen(
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
         }
 
         Spacer(Modifier.height(Space.XXL))

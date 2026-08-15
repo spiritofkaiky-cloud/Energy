@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.energy.app.data.stats.EnergyScore
 import com.energy.app.data.stats.ScoreFactor
 import com.energy.app.ui.theme.EnergyMint
+import com.energy.app.ui.theme.LocalAccent
 import com.energy.app.ui.theme.EnergyOrange
 import com.energy.app.ui.theme.EnergyOrangeSoft
 import com.energy.app.ui.theme.MetaLabel
@@ -65,6 +66,7 @@ fun ScoreHero(
 
     // Theme values captured OUTSIDE the draw lambda.
     val trackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f)
+    val accent = LocalAccent.current
 
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -97,7 +99,7 @@ fun ScoreHero(
                 if (sweep > 0.005f) {
                     drawArc(
                         brush = Brush.sweepGradient(
-                            listOf(EnergyOrange, EnergyOrangeSoft, EnergyOrange),
+                            listOf(accent, accent.copy(alpha = 0.75f), accent),
                             center = Offset(this.size.width / 2, this.size.height / 2)
                         ),
                         startAngle = 140f,
@@ -109,7 +111,7 @@ fun ScoreHero(
                     )
                     // Soft glow companion
                     drawArc(
-                        color = EnergyOrange.copy(alpha = 0.16f),
+                        color = accent.copy(alpha = 0.16f),
                         startAngle = 140f,
                         sweepAngle = 260f * sweep,
                         useCenter = false,
@@ -147,7 +149,7 @@ fun ScoreHero(
                 text = score.category,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = EnergyOrange
+                color = accent
             )
             score.trendVs7Day?.let { trend ->
                 Spacer(Modifier.width(Space.SM))
@@ -193,6 +195,7 @@ fun ScoreHero(
 
 @Composable
 private fun FactorRow(f: ScoreFactor) {
+    val accent = LocalAccent.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -216,7 +219,7 @@ private fun FactorRow(f: ScoreFactor) {
             )
             if (frac != 0f) {
                 drawRoundRect(
-                    color = if (f.points >= 0) EnergyOrange else EnergyMint,
+                    color = if (f.points >= 0) accent else EnergyMint,
                     size = Size(this.size.width * kotlin.math.abs(frac), this.size.height),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
                 )

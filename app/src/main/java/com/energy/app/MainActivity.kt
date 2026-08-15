@@ -21,7 +21,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by container.settingsRepository.themeMode
                 .collectAsState(initial = ThemeMode.SYSTEM)
-            EnergyTheme(themeMode = themeMode) {
+            val prefs by container.settingsRepository.preferences
+                .collectAsState(initial = com.energy.app.data.settings.UserPreferences())
+            EnergyTheme(themeMode = themeMode, accent = prefs.accent) {
                 EnergyApp()
             }
         }

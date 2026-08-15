@@ -15,6 +15,7 @@ import com.energy.app.data.workout.WorkoutInsight
 import com.energy.app.data.workout.WorkoutInsights
 import com.energy.app.data.workout.WorkoutPoint
 import com.energy.app.data.workout.WorkoutSession
+import com.energy.app.data.settings.UserPreferences
 import com.energy.app.data.workout.WorkoutState
 import com.energy.app.data.workout.WorkoutType
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +40,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val restored: StateFlow<Boolean> = session.restored
     val lastFixMillis: StateFlow<Long> = session.lastFixMillis
     val currentSpeedKmh: Double get() = session.currentSpeedKmh
+
+    /** Centralized preferences — the live screen reads presets from here. */
+    val prefs: kotlinx.coroutines.flow.Flow<UserPreferences> =
+        container.settingsRepository.preferences
 
     private val _newRecords = MutableStateFlow<List<PersonalRecord>>(emptyList())
     val newRecords: StateFlow<List<PersonalRecord>> = _newRecords.asStateFlow()

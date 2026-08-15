@@ -16,6 +16,12 @@ import com.energy.app.ui.screens.auth.SignInScreen
 import com.energy.app.ui.screens.contact.ContactScreen
 import com.energy.app.ui.screens.history.WorkoutDetailScreen
 import com.energy.app.ui.screens.map.FullMapScreen
+import com.energy.app.ui.screens.profile.AboutScreen
+import com.energy.app.ui.screens.profile.DisplayAudioScreen
+import com.energy.app.ui.screens.profile.HealthDataScreen
+import com.energy.app.ui.screens.profile.MapPrivacyScreen
+import com.energy.app.ui.screens.profile.NotificationSettingsScreen
+import com.energy.app.ui.screens.profile.WorkoutSettingsScreen
 import com.energy.app.ui.screens.splash.SplashScreen
 import com.energy.app.ui.screens.workout.LiveWorkoutScreen
 
@@ -70,8 +76,37 @@ fun EnergyNavHost(navController: NavHostController) {
                 },
                 onOpenContact = {
                     navController.navigate(EnergyDestinations.CONTACT)
+                },
+                onOpenSettings = { route ->
+                    navController.navigate(route)
                 }
             )
+        }
+        // ── Deep settings screens ─────────────────────────────────────────
+        listOf(
+            EnergyDestinations.SETTINGS_WORKOUT,
+            EnergyDestinations.SETTINGS_DISPLAY,
+            EnergyDestinations.SETTINGS_NOTIFICATIONS,
+            EnergyDestinations.SETTINGS_MAPS,
+            EnergyDestinations.SETTINGS_HEALTH,
+            EnergyDestinations.SETTINGS_ABOUT
+        ).forEach { route ->
+            composable(route) {
+                when (route) {
+                    EnergyDestinations.SETTINGS_WORKOUT ->
+                        WorkoutSettingsScreen(onBack = { navController.popBackStack() })
+                    EnergyDestinations.SETTINGS_DISPLAY ->
+                        DisplayAudioScreen(onBack = { navController.popBackStack() })
+                    EnergyDestinations.SETTINGS_NOTIFICATIONS ->
+                        NotificationSettingsScreen(onBack = { navController.popBackStack() })
+                    EnergyDestinations.SETTINGS_MAPS ->
+                        MapPrivacyScreen(onBack = { navController.popBackStack() })
+                    EnergyDestinations.SETTINGS_HEALTH ->
+                        HealthDataScreen(onBack = { navController.popBackStack() })
+                    else ->
+                        AboutScreen(onBack = { navController.popBackStack() })
+                }
+            }
         }
         composable(
             route = EnergyDestinations.WORKOUT_LIVE,

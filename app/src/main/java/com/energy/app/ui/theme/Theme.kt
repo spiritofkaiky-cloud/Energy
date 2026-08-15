@@ -10,6 +10,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import com.energy.app.data.settings.Accent
 import com.energy.app.data.settings.ThemeMode
 
 val LocalDarkTheme = staticCompositionLocalOf { false }
@@ -21,8 +22,8 @@ val LocalDarkTheme = staticCompositionLocalOf { false }
  * Light: warm paper surfaces with its own contrast logic — never just an
  * inverted dark theme.
  */
-private val DarkColors = darkColorScheme(
-    primary = EnergyOrange,
+private fun darkScheme(accent: Color) = darkColorScheme(
+    primary = accent,
     onPrimary = Color.White,
     primaryContainer = EnergySurfaceHigh,
     onPrimaryContainer = EnergyTextPrimary,
@@ -48,10 +49,16 @@ private val DarkColors = darkColorScheme(
     onErrorContainer = Color(0xFFFFC9CE)
 )
 
-private val LightColors = lightColorScheme(
-    primary = Color(0xFFE8680A),          // slightly deepened orange for contrast
+private fun lightScheme(accent: Color) = lightColorScheme(
+    primary = when (accent) {
+        EnergyOrange -> Color(0xFFE8680A)   // deepened for light-theme contrast
+        else -> Color(0xFFC93B4F)
+    },
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFE3CC),
+    primaryContainer = when (accent) {
+        EnergyOrange -> Color(0xFFFFE3CC)
+        else -> Color(0xFFFBDDE2)
+    },
     onPrimaryContainer = Color(0xFF3A1B00),
     secondary = Color(0xFF0E7C57),
     onSecondary = Color.White,
@@ -75,15 +82,23 @@ private val LightColors = lightColorScheme(
     onErrorContainer = Color(0xFF57121E)
 )
 
+/** The accent actually in effect (Energy Orange or Energy Coral). */
+val LocalAccent = staticCompositionLocalOf { EnergyOrange }
+
 @Composable
 fun EnergyTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    accent: Accent = Accent.ORANGE,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
+    }
+    val accentColor = when (accent) {
+        Accent.ORANGE -> EnergyOrange
+        Accent.CORAL -> EnergyCoral
     }
 
     // Keep status-bar icon contrast in sync with the theme.
@@ -98,9 +113,12 @@ fun EnergyTheme(
         }
     }
 
-    CompositionLocalProvider(LocalDarkTheme provides darkTheme) {
+    CompositionLocalProvider(
+        LocalDarkTheme provides darkTheme,
+        LocalAccent provides accentColor
+    ) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = if (darkTheme) darkScheme(accentColor) else lightScheme(accentColor),
             typography = EnergyTypography,
             shapes = EnergyShapes,
             content = content

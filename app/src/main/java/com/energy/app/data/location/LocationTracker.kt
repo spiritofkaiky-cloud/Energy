@@ -12,6 +12,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.energy.app.data.settings.GpsMode
 import com.energy.app.data.settings.SettingsRepository
 import com.energy.app.data.workout.GpsFilter
 import kotlinx.coroutines.CoroutineScope
@@ -70,7 +71,6 @@ class LocationTracker(
     // Buffer between GPS callbacks (main thread) and disk (IO).
     private val pending = mutableListOf<DayPoint>()
     private var flushJob: Job? = null
-    private var batterySaver = false
 
     private var gotFix = false
 
@@ -103,14 +103,18 @@ class LocationTracker(
         anchorFromLastKnown()
 
         scope.launch {
-            batterySaver = runCatching { settings.preferences.first().batterySaver }
-                .getOrDefault(false)
-            val interval = if (batterySaver) 60_000L else 30_000L
+            val mode = runCatching { settings.preferences.first().gpsMode }
+                .getOrDefault(GpsMode.STANDARD)
+            val (interval, minDist) = when (mode) {
+                GpsMode.BATTERY_SAVER -> 60_000L to 50f
+                GpsMode.HIGH_ACCURACY -> 15_000L to 10f
+                GpsMode.STANDARD -> 30_000L to 25f
+            }
             val request = LocationRequest.Builder(
                 Priority.PRIORITY_BALANCED_POWER_ACCURACY,
                 interval
             )
-                .setMinUpdateDistanceMeters(if (batterySaver) 50f else 25f)
+                .setMinUpdateDistanceMeters(minDist)
                 .setMaxUpdateDelayMillis(120_000)
                 .build()
 
@@ -156,7 +160,7 @@ class LocationTracker(
             locationManager.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
                 interval,
-                if (batterySaver) 50f else 25f,
+                25f,
                 gpsListener,
                 Looper.getMainLooper()
             )

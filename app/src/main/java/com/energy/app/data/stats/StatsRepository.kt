@@ -54,6 +54,11 @@ class StatsRepository(private val context: Context) {
 
     private val Context.statsStore by preferencesDataStore(name = "energy_stats")
 
+    /** Destructive: clears score history + active days (data wipe flow). */
+    suspend fun clearAll() {
+        context.statsStore.edit { it.clear() }
+    }
+
     private val _score = MutableStateFlow(
         EnergyScore(0, "—", null, emptyList(), Recommendation("", ""))
     )

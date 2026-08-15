@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,6 +56,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.energy.app.data.settings.AnnounceInterval
+import com.energy.app.data.settings.MetricPreset
+import com.energy.app.data.settings.UserPreferences
+import com.energy.app.data.coach.WorkoutCoach
 import com.energy.app.data.workout.SaveStatus
 import com.energy.app.data.workout.WorkoutMath
 import com.energy.app.data.workout.WorkoutState
@@ -97,19 +102,34 @@ fun LiveWorkoutScreen(
     val newRecords by viewModel.newRecords.collectAsState()
     val insights by viewModel.insights.collectAsState()
     val lastFix by viewModel.lastFixMillis.collectAsState()
+    val prefs by viewModel.prefs.collectAsState(initial = UserPreferences())
 
-    var countdown by remember { mutableIntStateOf(if (state == WorkoutState.IDLE) 3 else 0) }
+    // Keep the screen awake while recording (§8 setting).
+    val view = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(prefs.keepScreenAwake) {
+        val window = (context as? android.app.Activity)?.window
+        if (prefs.keepScreenAwake) {
+            window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    var countdown by remember {
+        mutableIntStateOf(if (state == WorkoutState.IDLE) prefs.countdownSeconds else 0)
+    }
     var finished by remember { mutableStateOf(false) }
     var confirmFinish by remember { mutableStateOf(false) }
 
     LaunchedEffect(countdown) {
         if (countdown > 0) {
-            buzz(context, light = true)
+            buzz(context, light = true, haptics = prefs.haptics)
             delay(800)
             countdown--
         } else if (countdown == 0 && state == WorkoutState.IDLE && !finished) {
             viewModel.startWorkout(type, context)
-            buzz(context, light = false)
+            buzz(context, light = false, haptics = prefs.haptics)
         }
     }
 
@@ -123,10 +143,46 @@ fun LiveWorkoutScreen(
     val gpsSilent = state == WorkoutState.RECORDING &&
         lastFix > 0 && System.currentTimeMillis() - lastFix > 30_000
 
+    // Audio coaching (§2): milestone announcements while recording.
+    LaunchedEffect(prefs.audioCues, prefs.announceInterval, state) {
+        if (!prefs.audioCues || state != WorkoutState.RECORDING) return@LaunchedEffect
+        WorkoutCoach.init(context)
+        var lastKm = 0
+        var lastMin = 0L
+        while (true) {
+            delay(15_000)
+            val km = (distance / 1000).toInt()
+            val min = elapsed / 60_000L
+            when (prefs.announceInterval) {
+                AnnounceInterval.KM1 -> if (km > lastKm) {
+                    WorkoutCoach.speak(if (km == 1) "One kilometre" else "$km kilometres")
+                    lastKm = km
+                }
+                AnnounceInterval.KM5 -> if (km > lastKm && km % 5 == 0) {
+                    WorkoutCoach.speak("$km kilometres")
+                    lastKm = km
+                }
+                AnnounceInterval.MIN5 -> if (min > lastMin && min % 5L == 0L) {
+                    WorkoutCoach.speak("$min minutes")
+                    lastMin = min
+                }
+                AnnounceInterval.MIN10 -> if (min > lastMin && min % 10L == 0L) {
+                    WorkoutCoach.speak("$min minutes")
+                    lastMin = min
+                }
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { WorkoutCoach.shutdown() }
+    }
+
     Box(Modifier.fillMaxSize()) {
         MapWidget(
             points = rememberPoints(points),
-            speeds = rememberSpeeds(points),
+            speeds = if (prefs.speedColorRoute) rememberSpeeds(points) else null,
+            lineColor = if (prefs.routeColorAccent) MaterialTheme.colorScheme.primary
+            else Color.White.copy(alpha = 0.85f),
             modifier = Modifier.fillMaxSize(),
             interactive = true
         )
@@ -157,24 +213,37 @@ fun LiveWorkoutScreen(
                     )
                 }
             }
+
+            // Metric preset (§8): the athlete decides what's front and center.
+            val primaryLabel: String
+            val primaryValue: String
+            when (prefs.metricPreset) {
+                MetricPreset.MINIMAL -> {
+                    primaryLabel = "DISTANCE"
+                    primaryValue = WorkoutMath.formatDistance(distance)
+                }
+                else -> {
+                    primaryLabel = "PACE"
+                    primaryValue = paceText(distance, elapsed)
+                }
+            }
             Text(
-                text = WorkoutMath.formatPace(
-                    WorkoutMath.paceSecondsPerKm(distance, elapsed),
-                    imperial = false
-                ).replace(" /km", ""),
+                text = primaryValue,
                 style = MaterialTheme.typography.displayMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Light,
                 fontSize = 46.sp
             )
             Text(
-                text = "CURRENT PACE",
+                text = primaryLabel,
                 style = MetaLabel,
                 color = Color.White.copy(alpha = 0.65f)
             )
             Spacer(Modifier.height(Space.XS))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.LG)) {
-                LabeledNumber(WorkoutMath.formatDistance(distance), "DISTANCE")
+                if (primaryLabel != "DISTANCE") {
+                    LabeledNumber(WorkoutMath.formatDistance(distance), "DISTANCE")
+                }
                 LabeledNumber(WorkoutMath.formatDuration(elapsed), "TIME")
                 LabeledNumber(WorkoutMath.formatSpeed(viewModel.currentSpeedKmh), "SPEED")
             }
@@ -241,10 +310,10 @@ fun LiveWorkoutScreen(
             ) {
                 ControlButton(
                     label = if (state == WorkoutState.PAUSED) "Resume" else "Pause",
-                    color = EnergyOrange,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        buzz(context, light = true)
+                        buzz(context, light = true, haptics = prefs.haptics)
                         viewModel.togglePause(context)
                     }
                 )
@@ -253,13 +322,14 @@ fun LiveWorkoutScreen(
                     color = if (confirmFinish) EnergyCoral else Color.White.copy(alpha = 0.26f),
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        buzz(context, light = true)
-                        if (confirmFinish) {
+                        buzz(context, light = true, haptics = prefs.haptics)
+                        val mustConfirm = prefs.confirmFinish
+                        if (mustConfirm && !confirmFinish) {
+                            confirmFinish = true
+                        } else {
                             confirmFinish = false
                             finished = true
                             viewModel.stopWorkout(context)
-                        } else {
-                            confirmFinish = true
                         }
                     }
                 )
@@ -298,7 +368,7 @@ fun LiveWorkoutScreen(
                     text = "$countdown",
                     style = MaterialTheme.typography.displayLarge.copy(fontSize = 128.sp),
                     fontWeight = FontWeight.ExtraBold,
-                    color = EnergyOrange
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Text(
                     text = "Get ready…",
@@ -318,7 +388,7 @@ fun LiveWorkoutScreen(
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = EnergyOrange)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(Space.MD))
                 Text(
                     text = "Saving your workout…",
@@ -544,6 +614,12 @@ private fun ControlButton(
     }
 }
 
+private fun paceText(distance: Double, elapsed: Long): String =
+    WorkoutMath.formatPace(
+        WorkoutMath.paceSecondsPerKm(distance, elapsed),
+        imperial = false
+    ).replace(" /km", "")
+
 /** Cached mappings so route lists aren't rebuilt on every recomposition. */
 @Composable
 private fun rememberPoints(points: List<com.energy.app.data.workout.WorkoutPoint>): List<com.energy.app.data.location.DayPoint> =
@@ -555,7 +631,9 @@ private fun rememberPoints(points: List<com.energy.app.data.workout.WorkoutPoint
 private fun rememberSpeeds(points: List<com.energy.app.data.workout.WorkoutPoint>): List<Float> =
     remember(points) { points.map { it.speedKmh.toFloat() } }
 
-private fun buzz(context: Context, light: Boolean) {
+private fun buzz(context: Context, light: Boolean, haptics: com.energy.app.data.settings.Haptics = com.energy.app.data.settings.Haptics.FULL) {
+    if (haptics == com.energy.app.data.settings.Haptics.OFF) return
+    val lightEffect = light && haptics != com.energy.app.data.settings.Haptics.REDUCED
     runCatching {
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager)
@@ -566,11 +644,11 @@ private fun buzz(context: Context, light: Boolean) {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator.vibrate(
-                VibrationEffect.createOneShot(if (light) 30L else 120L, if (light) 40 else 120)
+                VibrationEffect.createOneShot(if (lightEffect) 30L else 120L, if (lightEffect) 40 else 120)
             )
         } else {
             @Suppress("DEPRECATION")
-            vibrator.vibrate(if (light) 30L else 120L)
+            vibrator.vibrate(if (lightEffect) 30L else 120L)
         }
     }
 }

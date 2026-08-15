@@ -30,6 +30,8 @@ import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 
 private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
@@ -49,7 +51,9 @@ fun MapWidget(
     interactive: Boolean = true,
     currentPosition: DayPoint? = null,
     /** Per-segment speeds (km/h, size = points.size) → speed-colored route. */
-    speeds: List<Float>? = null
+    speeds: List<Float>? = null,
+    /** Solid route color when speed coloring is off (§9). */
+    lineColor: Color = Color(0xFFFF7A1A)
 ) {
     val dark = LocalDarkTheme.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -60,6 +64,7 @@ fun MapWidget(
     // software renderers when called every recomposition).
     var lastPointsHash by remember { mutableStateOf(points.hashCode()) }
     var lastSpeedsHash by remember { mutableStateOf(speeds?.hashCode() ?: 0) }
+    var lastLineColor by remember { mutableStateOf(lineColor) }
     var lastPosition by remember { mutableStateOf(currentPosition) }
 
     AndroidView(
@@ -77,7 +82,7 @@ fun MapWidget(
                     map.uiSettings.isZoomGesturesEnabled = interactive
                     map.uiSettings.isCompassEnabled = interactive
                     map.setStyle(if (dark) DARK_STYLE else LIGHT_STYLE) { style ->
-                        ensurePathLayer(style, points, speeds)
+                        ensurePathLayer(style, points, speeds, lineColor)
                         ensurePositionLayer(style)
                     }
                     if (points.isEmpty() && currentPosition == null) {
@@ -97,13 +102,15 @@ fun MapWidget(
             mapRef?.let { map ->
                 val pointsChanged = points.hashCode() != lastPointsHash
                 val speedsChanged = (speeds?.hashCode() ?: 0) != lastSpeedsHash
+                val lineColorChanged = lineColor != lastLineColor
                 val positionChanged = currentPosition != lastPosition
-                if (!pointsChanged && !speedsChanged && !positionChanged && fittedOnce) return@let
+                if (!pointsChanged && !speedsChanged && !lineColorChanged && !positionChanged && fittedOnce) return@let
                 lastPointsHash = points.hashCode()
                 lastSpeedsHash = speeds?.hashCode() ?: 0
+                lastLineColor = lineColor
                 lastPosition = currentPosition
                 map.getStyle { style ->
-                    if (pointsChanged || speedsChanged) ensurePathLayer(style, points, speeds)
+                    if (pointsChanged || speedsChanged || lineColorChanged) ensurePathLayer(style, points, speeds, lineColor)
                     if (positionChanged) updatePositionLayer(style, currentPosition)
                     if (!fittedOnce && (points.size >= 2 || currentPosition != null)) {
                         fittedOnce = true
@@ -129,7 +136,7 @@ fun MapWidget(
     }
 }
 
-private fun ensurePathLayer(style: Style, points: List<DayPoint>, speeds: List<Float>?) {
+private fun ensurePathLayer(style: Style, points: List<DayPoint>, speeds: List<Float>?, lineColor: Color) {
     val sourceName = if (speeds != null) "day-path-speed" else "day-path"
     val layerName = if (speeds != null) "day-path-layer-speed" else "day-path-layer"
 
@@ -160,12 +167,13 @@ private fun ensurePathLayer(style: Style, points: List<DayPoint>, speeds: List<F
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
         )
-        val color = if (speeds != null) speedColorExpression() else null
+        val lineColorProp: org.maplibre.android.style.layers.PropertyValue<*> =
+            if (speeds != null) PropertyFactory.lineColor(speedColorExpression())
+            else PropertyFactory.lineColor(colorToHex(lineColor))
         style.addLayer(
             LineLayer(layerName, sourceName).withProperties(
                 *props,
-                if (color != null) PropertyFactory.lineColor(color)
-                else PropertyFactory.lineColor(ENERGY_ORANGE)
+                lineColorProp
             )
         )
     } else {
@@ -183,6 +191,9 @@ private fun speedColorExpression(): org.maplibre.android.style.expressions.Expre
         org.maplibre.android.style.expressions.Expression.stop(16f, "#FFB84D"),
         org.maplibre.android.style.expressions.Expression.stop(30f, "#FFE28A")
     )
+
+private fun colorToHex(c: Color): String =
+    String.format("#%06X", 0xFFFFFF and c.toArgb())
 
 private fun ensurePositionLayer(style: Style) {
     if (style.getSourceAs<GeoJsonSource>("current-pos") != null) return

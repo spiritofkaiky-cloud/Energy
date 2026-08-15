@@ -137,7 +137,7 @@ fun ProgressScreen(viewModel: ProgressViewModel = viewModel()) {
                 text = "$pct%",
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Light,
-                color = EnergyOrange
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(Space.MD))
             Column {
@@ -197,7 +197,7 @@ fun ProgressScreen(viewModel: ProgressViewModel = viewModel()) {
                         r.valueText,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium,
-                        color = EnergyOrange
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }

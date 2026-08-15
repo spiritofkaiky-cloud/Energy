@@ -51,6 +51,9 @@ enum class SaveStatus { NONE, SAVING, SAVED, FAILED }
  *  - Fixes pass through [GpsFilter]: accuracy-gated, jump/spike-rejected,
  *    duplicate-minimized. Distance is only ever added from accepted fixes.
  */
+/** Standing still this long triggers auto-pause (when enabled). */
+private const val AUTO_PAUSE_AFTER_MS = 15_000L
+
 class WorkoutSession(
     private val context: Context,
     private val repository: WorkoutRepository,
@@ -135,6 +138,14 @@ class WorkoutSession(
         pausedTotal = 0L
         lastResumeAt = startMillis
         lastFixAt = 0L
+        lastMovingAt = 0L
+        autoPauseEnabled = false
+        // Read auto-pause preference once per workout (async, non-blocking).
+        appScope.launch {
+            autoPauseEnabled = runCatching {
+                settings.preferences.first().autoPause
+            }.getOrDefault(false)
+        }
         gotLiveFix = false
         acceptedSinceHeader = 0
         filter.reset()
@@ -331,6 +342,7 @@ class WorkoutSession(
             }
         }
         _maxSpeedKmh.value = maxOf(_maxSpeedKmh.value, segmentSpeed)
+        if (segmentSpeed > 1.0) lastMovingAt = now
         lastFixAt = now
         _lastFixMillis.value = now
 
@@ -352,10 +364,22 @@ class WorkoutSession(
         tickerJob = scope.launch {
             while (isActive && _state.value == WorkoutState.RECORDING) {
                 _elapsedMillis.value = pausedTotal + (System.currentTimeMillis() - lastResumeAt)
+                // Auto-pause (§17 setting): standing still for 15 s pauses.
+                if (autoPauseEnabled && gotLiveFix && lastMovingAt > 0 &&
+                    System.currentTimeMillis() - lastMovingAt > AUTO_PAUSE_AFTER_MS
+                ) {
+                    pause()
+                }
                 delay(1_000)
             }
         }
     }
+
+    /** True when the user enabled auto-pause (read once at workout start). */
+    private var autoPauseEnabled = false
+
+    /** Wall time of the last fix that showed real movement. */
+    private var lastMovingAt = 0L
 
     /** Current speed km/h from the last two accepted fixes. */
     val currentSpeedKmh: Double

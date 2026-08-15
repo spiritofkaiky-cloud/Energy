@@ -32,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -80,12 +81,18 @@ fun MainScaffold(
     onStartWorkout: (WorkoutType) -> Unit,
     onOpenFullMap: () -> Unit,
     onWorkoutClick: (String) -> Unit,
-    onOpenContact: () -> Unit
+    onOpenContact: () -> Unit,
+    onOpenSettings: (String) -> Unit = {}
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = LocalHapticFeedback.current
+
+    // Visual effects toggle (§26): aurora only when enabled.
+    val prefs by (context.applicationContext as EnergyApplication)
+        .container.settingsRepository.preferences
+        .collectAsState(initial = com.energy.app.data.settings.UserPreferences())
 
     // Battery: only track passive movement while the app is actually visible.
     DisposableEffect(lifecycleOwner) {
@@ -106,12 +113,16 @@ fun MainScaffold(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        AuroraBackground()
+        if (prefs.visualEffects) {
+            AuroraBackground()
+        }
         Scaffold(
             containerColor = Color.Transparent,
             bottomBar = { EnergyNavBar(selectedTab) { i ->
                 if (i != selectedTab) {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (prefs.haptics != com.energy.app.data.settings.Haptics.OFF) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    }
                     selectedTab = i
                 }
             } }
@@ -135,7 +146,19 @@ fun MainScaffold(
                         onWorkoutClick = onWorkoutClick
                     )
                     2 -> ProgressScreen()
-                    else -> ProfileScreen(onSignOut = onSignedOut, onOpenContact = onOpenContact)
+                    else -> ProfileScreen(
+                        onSignOut = onSignedOut,
+                        onOpenContact = onOpenContact,
+                        onOpenWorkoutSettings = { onOpenSettings(EnergyDestinations.SETTINGS_WORKOUT) },
+                        onOpenDisplay = { onOpenSettings(EnergyDestinations.SETTINGS_DISPLAY) },
+                        onOpenAudio = { onOpenSettings(EnergyDestinations.SETTINGS_DISPLAY) },
+                        onOpenNotifications = { onOpenSettings(EnergyDestinations.SETTINGS_NOTIFICATIONS) },
+                        onOpenMaps = { onOpenSettings(EnergyDestinations.SETTINGS_MAPS) },
+                        onOpenHealth = { onOpenSettings(EnergyDestinations.SETTINGS_HEALTH) },
+                        onOpenPrivacy = { onOpenSettings(EnergyDestinations.SETTINGS_MAPS) },
+                        onOpenData = { onOpenSettings(EnergyDestinations.SETTINGS_HEALTH) },
+                        onOpenAbout = { onOpenSettings(EnergyDestinations.SETTINGS_ABOUT) }
+                    )
                 }
             }
         }
