@@ -4,28 +4,37 @@ import android.app.Application
 import com.energy.app.data.alarm.WorkoutAlarmScheduler
 import com.energy.app.data.auth.AuthRepository
 import com.energy.app.data.auth.GoogleSignInHelper
-import com.energy.app.data.auth.GuestAuthRepository
+import com.energy.app.data.auth.PersistedAuthRepository
 import com.energy.app.data.cloud.CloudRepository
 import com.energy.app.data.location.DayPathRepository
 import com.energy.app.data.location.LocationTracker
 import com.energy.app.data.settings.SettingsRepository
 import com.energy.app.data.workout.WorkoutRepository
 import com.energy.app.data.workout.WorkoutSession
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
- * Manual DI container for M1–M4.
- * Replaced by Hilt at M5 when cloud sync arrives (APP_SPEC §7).
+ * Manual DI container. Kept intentionally small: one graph, lazy singletons,
+ * an application-scoped coroutine scope for work that must survive screen
+ * (or even process-level component) teardown — workout saves, session
+ * restore, cloud sync.
  */
 class AppContainer(application: Application) {
 
-    val authRepository: AuthRepository by lazy { GuestAuthRepository() }
+    /** Survives UI teardown — used for workout persistence & sync. */
+    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    val authRepository: AuthRepository by lazy { PersistedAuthRepository(application) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(application) }
 
     val dayPathRepository: DayPathRepository by lazy { DayPathRepository(application) }
 
     val locationTracker: LocationTracker by lazy {
-        LocationTracker(application, dayPathRepository)
+        LocationTracker(application, dayPathRepository, applicationScope, settingsRepository)
     }
 
     val workoutAlarmScheduler: WorkoutAlarmScheduler by lazy {
@@ -35,7 +44,12 @@ class AppContainer(application: Application) {
     val workoutRepository: WorkoutRepository by lazy { WorkoutRepository(application) }
 
     val workoutSession: WorkoutSession by lazy {
-        WorkoutSession(application, workoutRepository)
+        WorkoutSession(
+            application,
+            workoutRepository,
+            settingsRepository,
+            applicationScope
+        )
     }
 
     val healthRepository: com.energy.app.data.health.HealthRepository by lazy {
@@ -49,4 +63,11 @@ class AppContainer(application: Application) {
     val cloudRepository: CloudRepository by lazy { CloudRepository() }
 
     val googleSignInHelper: GoogleSignInHelper by lazy { GoogleSignInHelper(application) }
+
+    init {
+        // Restore the signed-in user at startup so relaunches skip sign-in.
+        applicationScope.launch {
+            (authRepository as? PersistedAuthRepository)?.restoreSession()
+        }
+    }
 }

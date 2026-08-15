@@ -17,8 +17,8 @@ data class DayPoint(val lat: Double, val lng: Double, val timeMillis: Long)
 private val Context.dayPathStore by preferencesDataStore(name = "energy_day_path")
 
 /**
- * Stores the day's GPS breadcrumbs as JSON in DataStore (Room arrives at M4).
- * Auto-resets when the day changes.
+ * Stores the day's GPS breadcrumbs as JSON in DataStore.
+ * Auto-resets when the day changes. Batch-friendly ([addPoints]).
  */
 class DayPathRepository(private val context: Context) {
 
@@ -33,12 +33,16 @@ class DayPathRepository(private val context: Context) {
         if (prefs[Keys.DAY] != today()) emptyList() else parse(prefs[Keys.POINTS].orEmpty())
     }
 
-    suspend fun addPoint(lat: Double, lng: Double) {
+    suspend fun addPoint(lat: Double, lng: Double) = addPoints(listOf(DayPoint(lat, lng, System.currentTimeMillis())))
+
+    /** Batch insert — one DataStore rewrite for a whole batch of fixes. */
+    suspend fun addPoints(points: List<DayPoint>) {
+        if (points.isEmpty()) return
         context.dayPathStore.edit { prefs ->
             val isNewDay = prefs[Keys.DAY] != today()
             val list = if (isNewDay) emptyList() else parse(prefs[Keys.POINTS].orEmpty())
             prefs[Keys.DAY] = today()
-            prefs[Keys.POINTS] = toJson(list + DayPoint(lat, lng, System.currentTimeMillis()))
+            prefs[Keys.POINTS] = toJson(list + points)
         }
     }
 
@@ -49,15 +53,20 @@ class DayPathRepository(private val context: Context) {
         }
     }
 
+    /** Tolerant parse — one corrupt point is skipped, the trail survives. */
     private fun parse(json: String): List<DayPoint> {
         if (json.isBlank()) return emptyList()
-        return runCatching {
+        return try {
             val arr = JSONArray(json)
-            (0 until arr.length()).map { i ->
-                val o = arr.getJSONObject(i)
-                DayPoint(o.getDouble("lat"), o.getDouble("lng"), o.getLong("t"))
+            (0 until arr.length()).mapNotNull { i ->
+                runCatching {
+                    val o = arr.getJSONObject(i)
+                    DayPoint(o.getDouble("lat"), o.getDouble("lng"), o.getLong("t"))
+                }.getOrNull()
             }
-        }.getOrDefault(emptyList())
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     private fun toJson(points: List<DayPoint>): String {

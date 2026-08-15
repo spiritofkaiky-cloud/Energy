@@ -37,17 +37,19 @@ private const val ENERGY_ORANGE = "#FF7A1A"
 private const val ENERGY_CORAL = "#FF5F6D"
 
 /**
- * Strava-style map: draws the route as a line (speed-consistent color),
- * optional pulsing current-position marker, full gesture support when
- * [interactive] (a real, normal map). MapLibre + OpenFreeMap = free,
- * no API key. Dark style in dark mode.
+ * Strava-style map: draws the route as a line, optional speed coloring
+ * (coral → orange → yellow by segment speed), optional pulsing
+ * current-position marker, full gesture support when [interactive].
+ * MapLibre + OpenFreeMap = free, no API key. Dark style in dark mode.
  */
 @Composable
 fun MapWidget(
     points: List<DayPoint>,
     modifier: Modifier = Modifier,
     interactive: Boolean = true,
-    currentPosition: DayPoint? = null
+    currentPosition: DayPoint? = null,
+    /** Per-segment speeds (km/h, size = points.size) → speed-colored route. */
+    speeds: List<Float>? = null
 ) {
     val dark = LocalDarkTheme.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -57,6 +59,7 @@ fun MapWidget(
     // Delta guards: skip redundant native layer updates (they leak on
     // software renderers when called every recomposition).
     var lastPointsHash by remember { mutableStateOf(points.hashCode()) }
+    var lastSpeedsHash by remember { mutableStateOf(speeds?.hashCode() ?: 0) }
     var lastPosition by remember { mutableStateOf(currentPosition) }
 
     AndroidView(
@@ -74,7 +77,7 @@ fun MapWidget(
                     map.uiSettings.isZoomGesturesEnabled = interactive
                     map.uiSettings.isCompassEnabled = interactive
                     map.setStyle(if (dark) DARK_STYLE else LIGHT_STYLE) { style ->
-                        ensurePathLayer(style, points)
+                        ensurePathLayer(style, points, speeds)
                         ensurePositionLayer(style)
                     }
                     if (points.isEmpty() && currentPosition == null) {
@@ -93,12 +96,14 @@ fun MapWidget(
         update = { _ ->
             mapRef?.let { map ->
                 val pointsChanged = points.hashCode() != lastPointsHash
+                val speedsChanged = (speeds?.hashCode() ?: 0) != lastSpeedsHash
                 val positionChanged = currentPosition != lastPosition
-                if (!pointsChanged && !positionChanged && fittedOnce) return@let
+                if (!pointsChanged && !speedsChanged && !positionChanged && fittedOnce) return@let
                 lastPointsHash = points.hashCode()
+                lastSpeedsHash = speeds?.hashCode() ?: 0
                 lastPosition = currentPosition
                 map.getStyle { style ->
-                    if (pointsChanged) ensurePathLayer(style, points)
+                    if (pointsChanged || speedsChanged) ensurePathLayer(style, points, speeds)
                     if (positionChanged) updatePositionLayer(style, currentPosition)
                     if (!fittedOnce && (points.size >= 2 || currentPosition != null)) {
                         fittedOnce = true
@@ -124,26 +129,60 @@ fun MapWidget(
     }
 }
 
-private fun ensurePathLayer(style: Style, points: List<DayPoint>) {
-    val geometry = Feature.fromGeometry(
-        LineString.fromLngLats(points.map { Point.fromLngLat(it.lng, it.lat) })
-    )
-    val existing = style.getSourceAs<GeoJsonSource>("day-path")
+private fun ensurePathLayer(style: Style, points: List<DayPoint>, speeds: List<Float>?) {
+    val sourceName = if (speeds != null) "day-path-speed" else "day-path"
+    val layerName = if (speeds != null) "day-path-layer-speed" else "day-path-layer"
+
+    val geometryJson = if (speeds == null || points.size < 2) {
+        Feature.fromGeometry(
+            LineString.fromLngLats(points.map { Point.fromLngLat(it.lng, it.lat) })
+        ).toJson()
+    } else {
+        val features = (1 until points.size).map { i ->
+            Feature.fromGeometry(
+                LineString.fromLngLats(
+                    listOf(
+                        Point.fromLngLat(points[i - 1].lng, points[i - 1].lat),
+                        Point.fromLngLat(points[i].lng, points[i].lat)
+                    )
+                )
+            ).apply { addNumberProperty("speed", speeds[i].coerceAtLeast(0f)) }
+        }
+        org.maplibre.geojson.FeatureCollection.fromFeatures(features).toJson()
+    }
+
+    val existing = style.getSourceAs<GeoJsonSource>(sourceName)
     if (existing == null) {
-        style.addSource(GeoJsonSource("day-path", geometry))
+        style.addSource(GeoJsonSource(sourceName, geometryJson))
+        val props = arrayOf(
+            PropertyFactory.lineWidth(4f),
+            PropertyFactory.lineOpacity(0.9f),
+            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+        )
+        val color = if (speeds != null) speedColorExpression() else null
         style.addLayer(
-            LineLayer("day-path-layer", "day-path").withProperties(
-                PropertyFactory.lineColor(ENERGY_ORANGE),
-                PropertyFactory.lineWidth(4f),
-                PropertyFactory.lineOpacity(0.9f),
-                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+            LineLayer(layerName, sourceName).withProperties(
+                *props,
+                if (color != null) PropertyFactory.lineColor(color)
+                else PropertyFactory.lineColor(ENERGY_ORANGE)
             )
         )
     } else {
-        existing.setGeoJson(geometry)
+        existing.setGeoJson(geometryJson)
     }
 }
+
+/** Slow → coral, cruising → orange, fast → yellow (data-driven, GPU-side). */
+private fun speedColorExpression(): org.maplibre.android.style.expressions.Expression =
+    org.maplibre.android.style.expressions.Expression.interpolate(
+        org.maplibre.android.style.expressions.Expression.exponential(1f),
+        org.maplibre.android.style.expressions.Expression.get("speed"),
+        org.maplibre.android.style.expressions.Expression.stop(0f, "#FF5F6D"),
+        org.maplibre.android.style.expressions.Expression.stop(8f, "#FF7A1A"),
+        org.maplibre.android.style.expressions.Expression.stop(16f, "#FFB84D"),
+        org.maplibre.android.style.expressions.Expression.stop(30f, "#FFE28A")
+    )
 
 private fun ensurePositionLayer(style: Style) {
     if (style.getSourceAs<GeoJsonSource>("current-pos") != null) return

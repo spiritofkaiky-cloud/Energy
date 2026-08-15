@@ -100,4 +100,77 @@ class WorkoutMathTest {
         val km = StatsRepository.dayPathDistanceKm(points)
         assertEquals(2.0, km, 0.05)
     }
+
+    // ── v0.5 additions ────────────────────────────────────────────────────
+
+    @Test
+    fun `elevationGain - sums only meaningful climbs`() {
+        val points = listOf(
+            WorkoutPoint(35.0, 139.0, 0L, 0.0, alt = 10.0),
+            WorkoutPoint(35.001, 139.0, 1L, 0.0, alt = 15.0),   // +5
+            WorkoutPoint(35.002, 139.0, 2L, 0.0, alt = 14.0),   // -1 (ignored)
+            WorkoutPoint(35.003, 139.0, 3L, 0.0, alt = 14.4),   // +0.4 (<0.5 ignored)
+            WorkoutPoint(35.004, 139.0, 4L, 0.0, alt = 20.0),   // +5.6
+            WorkoutPoint(35.005, 139.0, 5L, 0.0, alt = 90.0)    // +70 (>30 ignored)
+        )
+        assertEquals(10.6, WorkoutMath.elevationGainMeters(points), 0.01)
+    }
+
+    @Test
+    fun `elevationGain - empty and null altitudes`() {
+        assertEquals(0.0, WorkoutMath.elevationGainMeters(emptyList()), 0.001)
+        assertEquals(
+            0.0,
+            WorkoutMath.elevationGainMeters(listOf(WorkoutPoint(35.0, 139.0, 0L, 0.0))),
+            0.001
+        )
+    }
+
+    @Test
+    fun `calories - heavier runner burns more`() {
+        val light = WorkoutMath.calories(WorkoutType.RUN, 30 * 60_000L, 50.0)
+        val heavy = WorkoutMath.calories(WorkoutType.RUN, 30 * 60_000L, 90.0)
+        assertTrue("heavy ($heavy) should exceed light ($light)", heavy > light)
+    }
+
+    @Test
+    fun `formatDistance - imperial conversion`() {
+        assertEquals("3.11 mi", WorkoutMath.formatDistance(5_000.0, imperial = true))
+        assertEquals("1,640 ft".replace(",", ""), WorkoutMath.formatDistance(500.0, imperial = true).replace(",", ""))
+        assertEquals("5.00 km", WorkoutMath.formatDistance(5_000.0, imperial = false))
+    }
+
+    @Test
+    fun `formatPace - imperial converts minutes per mile`() {
+        // 360 s/km ≈ 579.4 s/mi ≈ 9:39
+        assertEquals("9:39 /mi", WorkoutMath.formatPace(360.0, imperial = true))
+    }
+
+    @Test
+    fun `formatSpeed - imperial converts to mph`() {
+        assertEquals("6.2 mph", WorkoutMath.formatSpeed(10.0, imperial = true))
+        assertEquals("10.0 km/h", WorkoutMath.formatSpeed(10.0, imperial = false))
+    }
+
+    @Test
+    fun `formatDuration - handles hours`() {
+        assertEquals("1:02:03", WorkoutMath.formatDuration(3_723_000L))
+        assertEquals("05:06", WorkoutMath.formatDuration(306_000L))
+    }
+
+    @Test
+    fun `cumulativeDistanceTime - starts at zero and only counts moving`() {
+        val points = listOf(
+            WorkoutPoint(35.0, 139.0, 0L, 0.0),
+            WorkoutPoint(35.009, 139.0, 300_000L, 12.0),  // ~1 km moving
+            WorkoutPoint(35.00902, 139.0, 600_000L, 0.0)  // drift — excluded
+        )
+        val cum = WorkoutMath.cumulativeDistanceTime(points)
+        assertEquals(3, cum.size)
+        assertEquals(0.0, cum[0].first, 0.001)
+        assertEquals(0L, cum[0].second)
+        // Final cumulative distance ≈ 1 km (drift segment not counted).
+        assertEquals(1.0, cum[2].first / 1000.0, 0.05)
+        assertEquals(600_000L, cum[2].second)
+    }
 }

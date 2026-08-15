@@ -9,11 +9,16 @@ enum class WorkoutType(val label: String, val emoji: String) {
 
 enum class WorkoutState { IDLE, RECORDING, PAUSED }
 
+/** Persisted cloud-sync state for a saved workout (offline-first, APP_SPEC §18). */
+enum class SyncState { PENDING, SYNCED, FAILED }
+
 data class WorkoutPoint(
     val lat: Double,
     val lng: Double,
     val timeMillis: Long,
-    val speedKmh: Double
+    val speedKmh: Double,
+    /** GPS altitude in meters, when the fix reported one. */
+    val alt: Double? = null
 )
 
 data class SavedWorkout(
@@ -23,7 +28,14 @@ data class SavedWorkout(
     val endMillis: Long,
     val distanceMeters: Double,
     val durationMillis: Long,
-    val points: List<WorkoutPoint>
+    val points: List<WorkoutPoint>,
+    /** Estimated at save time from duration + type + user weight (WorkoutMath). */
+    val calories: Int = 0,
+    /** Sum of positive altitude deltas across the route (GPS-derived). */
+    val elevationGainMeters: Double = 0.0,
+    val avgHeartRateBpm: Int? = null,
+    val maxHeartRateBpm: Int? = null,
+    val syncState: SyncState = SyncState.PENDING
 ) {
     val durationMinutes: Long get() = durationMillis / 60_000
 
@@ -38,9 +50,6 @@ data class SavedWorkout(
             (durationMillis / 60_000.0) / (distanceMeters / 1000.0)
         } else 0.0
 
-    /** Rough calories estimate: ~8 kcal/min for run/hike, ~6 for cycle, ~4 for walk. */
-    val calories: Int
-        get() = ((durationMillis / 60_000.0) *
-            when (type) { WorkoutType.RUN -> 8.0; WorkoutType.HIKE -> 7.0; WorkoutType.CYCLE -> 6.0; WorkoutType.WALK -> 4.0 })
-            .toInt()
+    val maxSpeedKmh: Double
+        get() = points.maxOfOrNull { it.speedKmh } ?: 0.0
 }

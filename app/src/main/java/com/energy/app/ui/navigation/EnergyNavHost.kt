@@ -36,8 +36,9 @@ fun EnergyNavHost(navController: NavHostController) {
     ) {
         composable(EnergyDestinations.SPLASH) {
             SplashScreen(
-                onFinished = {
-                    navController.navigate(EnergyDestinations.SIGN_IN) {
+                onFinished = { signedIn ->
+                    val dest = if (signedIn) EnergyDestinations.MAIN else EnergyDestinations.SIGN_IN
+                    navController.navigate(dest) {
                         popUpTo(EnergyDestinations.SPLASH) { inclusive = true }
                     }
                 }

@@ -30,19 +30,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.energy.app.EnergyApplication
 import com.energy.app.ui.components.GradientBackground
 import com.energy.app.ui.theme.EnergyCoral
 import com.energy.app.ui.theme.EnergyOrange
 import kotlinx.coroutines.delay
 
 /**
- * Animated splash: pulsing bolt logo, staggered title entrance, then
- * hand-off to Sign-In. APP_SPEC §5.1.
+ * Animated splash — pulsing bolt logo, staggered title entrance, then
+ * hand-off. Reports whether a session already exists so navigation can
+ * skip sign-in (APP_SPEC §37 session restoration).
  */
 @Composable
-fun SplashScreen(onFinished: () -> Unit) {
+fun SplashScreen(onFinished: (signedIn: Boolean) -> Unit) {
+    val context = LocalContext.current
     var entered by remember { mutableStateOf(false) }
 
     val logoScale by animateFloatAsState(
@@ -64,8 +68,17 @@ fun SplashScreen(onFinished: () -> Unit) {
 
     LaunchedEffect(Unit) {
         entered = true
-        delay(2000)
-        onFinished()
+        // Keep the splash brief: the user should reach content quickly
+        // (APP_SPEC §31). Poll for the restored session briefly, then go.
+        val container = (context.applicationContext as EnergyApplication).container
+        var signedIn = false
+        repeat(10) {
+            signedIn = container.authRepository.currentUser.value != null
+            if (signedIn) return@repeat
+            delay(150)
+        }
+        delay(600)
+        onFinished(signedIn)
     }
 
     GradientBackground(Modifier.fillMaxSize()) {

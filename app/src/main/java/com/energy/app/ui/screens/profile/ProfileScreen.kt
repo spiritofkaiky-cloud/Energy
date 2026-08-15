@@ -69,7 +69,10 @@ fun ProfileScreen(
     val signedOut by viewModel.signedOut.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val alarm by viewModel.alarm.collectAsState()
-    val user = viewModel.user
+    val user by viewModel.user.collectAsState()
+    val lifetime by viewModel.lifetime.collectAsState()
+    val cloud by viewModel.cloudState.collectAsState()
+    val pendingSync by viewModel.pendingSyncCount.collectAsState()
 
     var showTimePicker by remember { mutableStateOf(false) }
 
@@ -136,11 +139,50 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            StatColumn(value = "0", label = "Workouts")
-            StatColumn(value = "0.0", label = "km")
-            StatColumn(value = "—", label = "Best pace")
+            StatColumn(value = "${lifetime.workoutCount}", label = "Workouts")
+            StatColumn(value = String.format("%.1f", lifetime.totalKm), label = "km total")
+            StatColumn(
+                value = lifetime.bestPaceSecondsPerKm?.let {
+                    com.energy.app.data.workout.WorkoutMath.formatPace(it)
+                } ?: "—",
+                label = "Best pace"
+            )
         }
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(20.dp))
+
+        // ── Cloud status ──────────────────────────────────────────────
+        if (cloud.status != com.energy.app.data.cloud.CloudStatus.NOT_CONFIGURED) {
+            SettingsCard(title = "Cloud sync") {
+                val (line, pending) = when (cloud.status) {
+                    com.energy.app.data.cloud.CloudStatus.SIGNED_IN,
+                    com.energy.app.data.cloud.CloudStatus.SYNCED ->
+                        "Signed in as ${cloud.userEmail ?: "your account"}" to pendingSync
+                    com.energy.app.data.cloud.CloudStatus.SIGNED_OUT ->
+                        "Not signed in — workouts stay on this device" to 0
+                    else -> "Syncing…" to 0
+                }
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (pending > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "$pending workout(s) waiting to sync",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { viewModel.retryPendingSync() }) {
+                            Text("Retry now")
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
 
         // ── Achievements (M6) ───────────────────────────────────────
         val streak by viewModel.streak.collectAsState()
@@ -252,6 +294,44 @@ fun ProfileScreen(
                     Text("+")
                 }
             }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Weight (for calorie estimates)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { viewModel.setWeightKg(prefs.weightKg - 1) }) {
+                    Text("−")
+                }
+                Text(
+                    text = "${prefs.weightKg} kg",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                TextButton(onClick = { viewModel.setWeightKg(prefs.weightKg + 1) }) {
+                    Text("+")
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Daily step goal",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { viewModel.setStepGoal(prefs.stepGoal - 1_000) }) {
+                    Text("−")
+                }
+                Text(
+                    text = String.format("%,d", prefs.stepGoal),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                TextButton(onClick = { viewModel.setStepGoal(prefs.stepGoal + 1_000) }) {
+                    Text("+")
+                }
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -313,7 +393,7 @@ fun ProfileScreen(
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "M5 · Google account + cloud sync",
+            text = "Energy v0.5.0 · local-first · MapLibre + OpenFreeMap · Health Connect",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

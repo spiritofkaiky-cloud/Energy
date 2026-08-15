@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
+import java.time.ZoneId
 
 data class DailyHealth(
     val steps: Int = 0,
@@ -50,7 +50,11 @@ class HealthRepository(context: Context) {
                 val hrPerm = HealthPermission.getReadPermission(HeartRateRecord::class)
                 if (stepsPerm !in granted && hrPerm !in granted) return@runCatching
 
-                val startOfDay = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC)
+                // "Today" means the LOCAL day — using UTC skewed daily totals
+                // for anyone east/west of the prime meridian.
+                val startOfDay = LocalDate.now()
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
                 val range = TimeRangeFilter.between(startOfDay, Instant.now())
                 val metrics = buildList {
                     if (stepsPerm in granted) add(StepsRecord.COUNT_TOTAL)

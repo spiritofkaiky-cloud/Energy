@@ -2,6 +2,7 @@ package com.energy.app.data.workout
 
 import com.energy.app.data.stats.StatsRepository
 import kotlin.math.max
+import java.util.Locale
 
 /**
  * Pure workout math — unit-testable, no Android dependencies.
@@ -22,43 +23,12 @@ object WorkoutMath {
         return durationMillis / 1000.0 / (distanceMeters / 1000.0)
     }
 
-    fun formatDuration(ms: Long): String {
-        val h = ms / 3_600_000
-        val m = (ms % 3_600_000) / 60_000
-        val s = (ms % 60_000) / 1_000
-        return if (h > 0) String.format("%d:%02d:%02d", h, m, s) else String.format("%02d:%02d", m, s)
-    }
-
-    fun formatDistance(meters: Double): String =
-        if (meters >= 1000) String.format("%.2f km", meters / 1000)
-        else String.format("%.0f m", meters)
-
-    fun formatPace(paceSecondsPerKm: Double?): String {
-        if (paceSecondsPerKm == null) return "—"
-        val m = (paceSecondsPerKm / 60).toInt()
-        val s = (paceSecondsPerKm - m * 60).toInt()
-        return String.format("%d:%02d /km", m, s)
-    }
-
-    /** Per-km splits for a trail of points (list of (distanceM, timeMs) cumulative). */
-    fun splits(points: List<Pair<Double, Long>>): List<Double> {
-        val result = mutableListOf<Double>()
-        var kmStart = 0.0
-        var tStart = 0L
-        for ((dist, t) in points) {
-            if (dist - kmStart >= 1000.0) {
-                val seg = dist - kmStart
-                val dt = t - tStart
-                result += (dt / 1000.0) / (seg / 1000.0) // s/km
-                kmStart = dist
-                tStart = t
-            }
-        }
-        return result
-    }
-
-    /** Simple calorie estimate: MET per type × weight × hours (min 60 kcal). */
-    fun calories(type: WorkoutType, durationMillis: Long): Int {
+    /**
+     * Calorie estimate: MET per type × weight × hours.
+     * METs are the compendium values for moderate outdoor activity; clearly
+     * an estimate (APP_SPEC — no fake precision).
+     */
+    fun calories(type: WorkoutType, durationMillis: Long, weightKg: Double = 70.0): Int {
         val met = when (type) {
             WorkoutType.RUN -> 9.8
             WorkoutType.WALK -> 3.5
@@ -66,7 +36,24 @@ object WorkoutMath {
             WorkoutType.HIKE -> 6.0
         }
         val hours = durationMillis / 3_600_000.0
-        return max(1, (met * 70.0 * hours).toInt()) // 70 kg reference
+        return max(1, (met * weightKg * hours).toInt())
+    }
+
+    /** Sum of positive altitude deltas (m) — elevation gained, GPS-derived. */
+    fun elevationGainMeters(points: List<WorkoutPoint>): Double {
+        var gain = 0.0
+        var last: Double? = null
+        for (p in points) {
+            val alt = p.alt ?: continue
+            val prev = last
+            if (prev != null) {
+                val delta = alt - prev
+                // Ignore sub-meter noise and GPS altitude jumps > 30 m/segment.
+                if (delta in 0.5..30.0) gain += delta
+            }
+            last = alt
+        }
+        return gain
     }
 
     /** Max speed across a workout (km/h). */
@@ -85,5 +72,81 @@ object WorkoutMath {
             if (kmh > 1.2) moving += dt
         }
         return moving
+    }
+
+    // ── shared formatters (single source of truth for all screens) ────────
+
+    fun formatDuration(ms: Long): String {
+        val h = ms / 3_600_000
+        val m = (ms % 3_600_000) / 60_000
+        val s = (ms % 60_000) / 1_000
+        return if (h > 0) String.format(Locale.US, "%d:%02d:%02d", h, m, s)
+        else String.format(Locale.US, "%02d:%02d", m, s)
+    }
+
+    /** "4.32 km" / "850 m" — units-aware, defaults to metric. */
+    fun formatDistance(meters: Double, imperial: Boolean = false): String {
+        val value = if (imperial) meters * 3.28084 else meters
+        val unit = if (imperial) "mi" else "km"
+        return if (imperial) {
+            val miles = meters / 1609.344
+            if (miles >= 10) String.format(Locale.US, "%.1f mi", miles)
+            else if (miles >= 1) String.format(Locale.US, "%.2f mi", miles)
+            else String.format(Locale.US, "%.0f ft", value)
+        } else {
+            if (meters >= 1000) String.format(Locale.US, "%.2f km", meters / 1000)
+            else String.format(Locale.US, "%.0f m", meters)
+        }
+    }
+
+    fun formatPace(paceSecondsPerKm: Double?, imperial: Boolean = false): String {
+        if (paceSecondsPerKm == null) return "—"
+        val seconds = if (imperial) paceSecondsPerKm * 1.609344 else paceSecondsPerKm
+        val m = (seconds / 60).toInt()
+        val s = (seconds - m * 60).toInt()
+        val unit = if (imperial) "/mi" else "/km"
+        return String.format(Locale.US, "%d:%02d %s", m, s, unit)
+    }
+
+    fun formatSpeed(kmh: Double, imperial: Boolean = false): String =
+        if (imperial) String.format(Locale.US, "%.1f mph", kmh * 0.621371)
+        else String.format(Locale.US, "%.1f km/h", kmh)
+
+    /** Per-km splits for a trail of points (list of (distanceM, timeMs) cumulative). */
+    fun splits(points: List<Pair<Double, Long>>): List<Double> {
+        val result = mutableListOf<Double>()
+        var kmStart = 0.0
+        var tStart = 0L
+        for ((dist, t) in points) {
+            if (dist - kmStart >= 1000.0) {
+                val seg = dist - kmStart
+                val dt = t - tStart
+                result += (dt / 1000.0) / (seg / 1000.0) // s/km
+                kmStart = dist
+                tStart = t
+            }
+        }
+        return result
+    }
+
+    /** Cumulative (distance, time) pairs across a workout trail. */
+    fun cumulativeDistanceTime(points: List<WorkoutPoint>): List<Pair<Double, Long>> {
+        if (points.isEmpty()) return emptyList()
+        val result = ArrayList<Pair<Double, Long>>(points.size + 1)
+        result += 0.0 to 0L
+        var dist = 0.0
+        for (i in 1 until points.size) {
+            val dt = points[i].timeMillis - points[i - 1].timeMillis
+            val kmh = speedKmh(
+                points[i - 1].lat, points[i - 1].lng,
+                points[i].lat, points[i].lng, dt
+            )
+            if (kmh > 1.2) dist += StatsRepository.haversineKm(
+                points[i - 1].lat, points[i - 1].lng,
+                points[i].lat, points[i].lng
+            ) * 1000.0
+            result += dist to (points[i].timeMillis - points[0].timeMillis)
+        }
+        return result
     }
 }

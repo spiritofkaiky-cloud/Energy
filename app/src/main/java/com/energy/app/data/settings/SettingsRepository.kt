@@ -17,7 +17,9 @@ data class UserPreferences(
     val units: Units = Units.METRIC,
     val batterySaver: Boolean = false,
     val autoPause: Boolean = false,
-    val calorieGoal: Int = 500
+    val calorieGoal: Int = 500,
+    val weightKg: Int = 70,
+    val stepGoal: Int = 10_000
 )
 
 data class AlarmSetting(
@@ -40,6 +42,8 @@ class SettingsRepository(private val context: Context) {
         val BATTERY_SAVER = booleanPreferencesKey("battery_saver")
         val AUTO_PAUSE = booleanPreferencesKey("auto_pause")
         val CALORIE_GOAL = intPreferencesKey("calorie_goal")
+        val WEIGHT_KG = intPreferencesKey("weight_kg")
+        val STEP_GOAL = intPreferencesKey("step_goal")
     }
 
     val themeMode: Flow<ThemeMode> = context.settingsStore.data.map { prefs ->
@@ -61,7 +65,9 @@ class SettingsRepository(private val context: Context) {
                 .getOrDefault(Units.METRIC),
             batterySaver = prefs[Keys.BATTERY_SAVER] ?: false,
             autoPause = prefs[Keys.AUTO_PAUSE] ?: false,
-            calorieGoal = prefs[Keys.CALORIE_GOAL] ?: 500
+            calorieGoal = prefs[Keys.CALORIE_GOAL] ?: 500,
+            weightKg = prefs[Keys.WEIGHT_KG] ?: 70,
+            stepGoal = prefs[Keys.STEP_GOAL] ?: 10_000
         )
     }
 
@@ -79,6 +85,14 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setCalorieGoal(goal: Int) {
         context.settingsStore.edit { it[Keys.CALORIE_GOAL] = goal.coerceIn(100, 5_000) }
+    }
+
+    suspend fun setWeightKg(weight: Int) {
+        context.settingsStore.edit { it[Keys.WEIGHT_KG] = weight.coerceIn(30, 250) }
+    }
+
+    suspend fun setStepGoal(goal: Int) {
+        context.settingsStore.edit { it[Keys.STEP_GOAL] = goal.coerceIn(1_000, 50_000) }
     }
 
     suspend fun setThemeMode(mode: ThemeMode) {

@@ -25,8 +25,8 @@ android {
         applicationId = "com.energy.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.4.1"
+        versionCode = 7
+        versionName = "0.5.0"
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
@@ -79,5 +79,7 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.androidx.health.connect)
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for unit tests (the android.jar stubs throw "not mocked").
+    testImplementation("org.json:json:20240303")
     debugImplementation(libs.androidx.ui.tooling)
 }

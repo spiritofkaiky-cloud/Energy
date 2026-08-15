@@ -20,6 +20,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * Keeps the workout alive in the background (APP_SPEC §9): notification with
@@ -52,7 +53,6 @@ class EnergyTrackingService : Service() {
                     session.elapsedMillis.collectLatest {
                         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                         manager.notify(NOTIFICATION_ID, buildNotification(session))
-                        delay(1_000)
                     }
                 }
             }
@@ -93,6 +93,7 @@ class EnergyTrackingService : Service() {
         val secs = (elapsed % 60_000) / 1_000
         val type = session.type.value.label
         val state = if (session.state.value == WorkoutState.PAUSED) "Paused" else "Live"
+        val distance = WorkoutMath.formatDistance(session.distanceMeters.value)
 
         val openApp = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
@@ -110,7 +111,9 @@ class EnergyTrackingService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_splash_bolt)
             .setContentTitle("$type — $state")
-            .setContentText(String.format("%02d:%02d", mins, secs))
+            .setContentText(
+                String.format(Locale.US, "%02d:%02d · %s", mins, secs, distance)
+            )
             .setOngoing(true)
             .setContentIntent(openApp)
             .addAction(

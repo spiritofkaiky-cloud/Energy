@@ -6,8 +6,8 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.energy.app.data.health.DailyHealth
 import com.energy.app.data.location.DayPoint
+import com.energy.app.data.settings.UserPreferences
 import com.energy.app.data.workout.SavedWorkout
-import com.energy.app.data.workout.WorkoutType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,30 +19,44 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-data class EnergyScore(val value: Int) {
-    val message: String get() = when {
-        value >= 85 -> "Ready to crush it"
-        value >= 70 -> "Solid day in motion"
-        value >= 50 -> "Keep the engine warm"
-        else -> "A little movement goes far"
-    }
-}
+/** One explainable ingredient of the score (APP_SPEC — no fake "AI"). */
+data class ScoreFactor(val label: String, val points: Int, val maxPoints: Int, val detail: String)
+
+/** Transparent rule-based recommendation + what it is based on. */
+data class Recommendation(val text: String, val basis: String)
+
+data class EnergyScore(
+    val value: Int,
+    val category: String,
+    val trendVs7Day: Int?,
+    val factors: List<ScoreFactor>,
+    val recommendation: Recommendation
+)
 
 /**
- * Oura-style daily Energy Score + activity streak (APP_SPEC §4.5 / M6).
- * Score = steps (0-50) + workout distance (0-30) + day-path distance (0-20),
- * capped at 100. Streak = consecutive active days (tracked points or a saved
- * workout), with milestones as achievements.
+ * Oura-inspired daily Energy Score (APP_SPEC §6) — but every point is
+ * explainable, and the score is clearly an estimate, not a physiological
+ * measurement.
+ *
+ *  Steps            → up to 40 pts (vs user step goal)
+ *  Workout minutes  → up to 30 pts (45 min of workouts = full)
+ *  Distance         → up to 20 pts (8 km across workouts + movement = full)
+ *  Recovery adjust  → ±10 pts (recent load vs the user's own 7-day baseline)
+ *
+ * Trend = today vs the mean of the previous 7 recorded days.
  */
 class StatsRepository(private val context: Context) {
 
     private object Keys {
         val ACTIVE_DAYS = stringSetPreferencesKey("active_days")
+        val SCORE_HISTORY = stringSetPreferencesKey("score_history") // "yyyy-MM-dd:NN"
     }
 
     private val Context.statsStore by preferencesDataStore(name = "energy_stats")
 
-    private val _score = MutableStateFlow(EnergyScore(0))
+    private val _score = MutableStateFlow(
+        EnergyScore(0, "—", null, emptyList(), Recommendation("", ""))
+    )
     val score: StateFlow<EnergyScore> = _score.asStateFlow()
 
     private val _streak = MutableStateFlow(0)
@@ -50,32 +64,63 @@ class StatsRepository(private val context: Context) {
 
     val activeDays: Flow<Set<String>> = context.statsStore.data.map { it[Keys.ACTIVE_DAYS] ?: emptySet() }
 
+    /** date("yyyy-MM-dd") → score, for trend charts. */
+    val scoreHistory: Flow<Map<String, Int>> = context.statsStore.data.map { prefs ->
+        (prefs[Keys.SCORE_HISTORY] ?: emptySet()).mapNotNull { entry ->
+            val parts = entry.split(':')
+            if (parts.size != 2) return@mapNotNull null
+            parts[0] to (parts[1].toIntOrNull() ?: return@mapNotNull null)
+        }.toMap()
+    }
+
     private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
-    /** Recompute score + streak from today's signals. */
+    /** Recompute score + streak + recommendation from today's signals. */
     suspend fun refresh(
         dayPoints: List<DayPoint>,
         workouts: List<SavedWorkout>,
-        health: DailyHealth?
+        health: DailyHealth?,
+        prefs: UserPreferences
     ) {
         val today = dayFmt.format(Date())
         markActive(today, dayPoints.isNotEmpty() || workouts.any {
             dayFmt.format(Date(it.startMillis)) == today
         })
 
-        // Score components
-        val stepsScore = ((health?.steps ?: 0) / 10_000.0).coerceAtMost(1.0) * 50.0
-        val todayWorkoutKm = workouts
-            .filter { dayFmt.format(Date(it.startMillis)) == today }
-            .sumOf { it.distanceMeters } / 1000.0
-        val workoutScore = (todayWorkoutKm / 10.0).coerceAtMost(1.0) * 30.0
-        val dayPathKm = dayPathDistanceKm(dayPoints)
-        val pathScore = (dayPathKm / 8.0).coerceAtMost(1.0) * 20.0
+        val steps = health?.steps ?: 0
+        val todayWorkouts = workouts.filter { dayFmt.format(Date(it.startMillis)) == today }
+        val workoutMinutes = todayWorkouts.sumOf { it.durationMillis } / 60_000.0
+        val workoutKm = todayWorkouts.sumOf { it.distanceMeters } / 1000.0
+        val pathKm = dayPathDistanceKm(dayPoints)
 
-        _score.value = EnergyScore((stepsScore + workoutScore + pathScore).toInt().coerceIn(0, 100))
+        val history = scoreHistory.first()
+        val recentLoad = recentLoadMinutes(workouts, 7)
+        val todayLoad = workoutMinutes + pathKm * 12.0 // minutes-equivalent load
+
+        val computed = EnergyScoreEngine.compute(
+            steps = steps,
+            stepGoal = prefs.stepGoal,
+            workoutMinutes = workoutMinutes,
+            workoutKm = workoutKm,
+            pathKm = pathKm,
+            history = history,
+            today = today,
+            todayLoadMinutes = todayLoad,
+            recentLoadMinutes = recentLoad
+        )
+        _score.value = computed
+
+        // Persist today's score for tomorrow's trend.
+        context.statsStore.edit { prefsStore ->
+            prefsStore[Keys.SCORE_HISTORY] =
+                (prefsStore[Keys.SCORE_HISTORY] ?: emptySet())
+                    .filter { !it.startsWith(today) }
+                    .toMutableSet()
+                    .apply { add("$today:${computed.value}") }
+        }
 
         // Streak over the last 60 days
-        val active = activeDaysOnce()
+        val active = activeDays.first()
         val cal = Calendar.getInstance()
         var streak = 0
         while (true) {
@@ -94,9 +139,14 @@ class StatsRepository(private val context: Context) {
         }
     }
 
-    suspend fun activeDaysOnce(): Set<String> = activeDays.first()
+    private fun recentLoadMinutes(workouts: List<SavedWorkout>, days: Int): Double {
+        val cutoff = System.currentTimeMillis() - days * 86_400_000L
+        return workouts.filter { it.startMillis >= cutoff }
+            .sumOf { it.durationMillis } / 60_000.0
+    }
 
     companion object {
+
         /** Approximate haversine distance of a point trail (km). */
         fun dayPathDistanceKm(points: List<DayPoint>): Double {
             if (points.size < 2) return 0.0

@@ -4,14 +4,24 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.energy.app.EnergyApplication
 import com.energy.app.data.workout.EnergyTrackingService
+import com.energy.app.data.workout.PersonalRecord
+import com.energy.app.data.workout.PersonalRecords
+import com.energy.app.data.workout.SaveStatus
 import com.energy.app.data.workout.SavedWorkout
+import com.energy.app.data.workout.WorkoutInsight
+import com.energy.app.data.workout.WorkoutInsights
 import com.energy.app.data.workout.WorkoutPoint
 import com.energy.app.data.workout.WorkoutSession
 import com.energy.app.data.workout.WorkoutState
 import com.energy.app.data.workout.WorkoutType
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -23,34 +33,59 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val points: StateFlow<List<WorkoutPoint>> = session.points
     val distanceMeters: StateFlow<Double> = session.distanceMeters
     val elapsedMillis: StateFlow<Long> = session.elapsedMillis
-    val currentSpeedKmh: Double get() = session.currentSpeedKmh
     val maxSpeedKmh: StateFlow<Double> = session.maxSpeedKmh
+    val saveStatus: StateFlow<SaveStatus> = session.saveStatus
+    val savedWorkout: StateFlow<SavedWorkout?> = session.lastSavedWorkout
+    val restored: StateFlow<Boolean> = session.restored
+    val lastFixMillis: StateFlow<Long> = session.lastFixMillis
+    val currentSpeedKmh: Double get() = session.currentSpeedKmh
 
-    /** Start (or resume existing) session + bring up the foreground service. */
+    private val _newRecords = MutableStateFlow<List<PersonalRecord>>(emptyList())
+    val newRecords: StateFlow<List<PersonalRecord>> = _newRecords.asStateFlow()
+
+    private val _insights = MutableStateFlow<List<WorkoutInsight>>(emptyList())
+    val insights: StateFlow<List<WorkoutInsight>> = _insights.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            session.lastSavedWorkout.collect { saved ->
+                if (saved != null) {
+                    val all = container.workoutRepository.workouts.first()
+                    _newRecords.value = PersonalRecords.newRecordsFor(all, saved)
+                    _insights.value = WorkoutInsights.generate(all, saved)
+                }
+            }
+        }
+    }
+
+    /** Start a fresh session + bring up the foreground service. */
     fun startWorkout(type: WorkoutType, context: Context) {
         if (session.state.value == WorkoutState.IDLE) session.start(type)
-        context.startForegroundService(
-            Intent(context, EnergyTrackingService::class.java)
-                .setAction(EnergyTrackingService.ACTION_START)
-        )
+        startService(context, EnergyTrackingService.ACTION_START)
     }
 
     fun togglePause(context: Context) {
         if (session.state.value == WorkoutState.RECORDING) session.pause()
         else if (session.state.value == WorkoutState.PAUSED) session.resume()
-        context.startService(
-            Intent(context, EnergyTrackingService::class.java)
-                .setAction(EnergyTrackingService.ACTION_PAUSE)
-        )
+        startService(context, EnergyTrackingService.ACTION_PAUSE)
     }
 
-    /** Finish: persist workout, drop the service notification. */
-    fun stopWorkout(context: Context): SavedWorkout? {
-        val saved = session.stop()
-        context.startService(
-            Intent(context, EnergyTrackingService::class.java)
-                .setAction(EnergyTrackingService.ACTION_STOP)
-        )
-        return saved
+    /** Finish: persist workout (async — watch [saveStatus]), drop the service. */
+    fun stopWorkout(context: Context) {
+        session.stop()
+        startService(context, EnergyTrackingService.ACTION_STOP)
+    }
+
+    fun retrySave() = session.retrySave()
+
+    fun discardDraft() = session.discardDraft()
+
+    private fun startService(context: Context, action: String) {
+        val intent = Intent(context, EnergyTrackingService::class.java).setAction(action)
+        try {
+            context.startForegroundService(intent)
+        } catch (e: Exception) {
+            context.startService(intent)
+        }
     }
 }

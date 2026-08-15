@@ -15,6 +15,7 @@ enum class CloudStatus {
     NOT_CONFIGURED,   // supabase.url/key missing from local.properties
     SIGNED_OUT,
     SIGNING_IN,
+    SIGNED_IN,
     SYNCING,
     SYNCED,
     ERROR
@@ -46,6 +47,8 @@ class CloudRepository {
     val state: StateFlow<CloudState> = _state.asStateFlow()
 
     val isConfigured: Boolean get() = CloudState.isConfigured()
+
+    val isSignedIn: Boolean get() = accessToken != null
 
     private var accessToken: String? = null
 
@@ -116,9 +119,9 @@ class CloudRepository {
     }
 
     private fun applySession(json: JSONObject) {
-        accessToken = json.optString("access_token")
+        accessToken = json.optString("access_token").takeIf { it.isNotBlank() }
         _state.value = CloudState(
-            status = CloudStatus.SIGNED_OUT,
+            status = if (accessToken != null) CloudStatus.SIGNED_IN else CloudStatus.SIGNED_OUT,
             userEmail = json.optJSONObject("user")?.optString("email")
                 ?: _state.value.userEmail
         )

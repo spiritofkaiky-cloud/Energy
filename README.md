@@ -1,9 +1,9 @@
 # ⚡ Energy
 
-A beautiful Android app that tracks your health like Apple Fitness and records your
-outdoor workouts with a live GPS map route like Strava.
+A premium Android fitness app: health tracking like Apple Fitness, live GPS
+routes like Strava, and an Oura-style daily Energy Score — with its own identity.
 
-**Stack:** Kotlin · Jetpack Compose · Material 3 · Health Connect · Google Maps SDK · Supabase
+**Stack:** Kotlin · Jetpack Compose · Material 3 · Health Connect · MapLibre + OpenFreeMap · Supabase REST
 
 The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
 
@@ -17,39 +17,54 @@ The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
 | M3 | Live GPS tracking + full-screen map + foreground service | ✅ |
 | M4 | Workout history + route detail + full-screen day map | ✅ |
 | M5 | Supabase cloud sync + Google sign-in (code ready — see ☁️ Cloud setup) | 🟡 needs your Supabase project |
-| M6 | Goals, achievements, streaks | ✅ streaks + achievements + workout alarm |
-| M7 | Polish: theme switcher, haptics | ✅ Oura-style polish (v0.3.1) |
-| M8 | Tests + Play Store release | ✅ 13 unit tests green; Play Store pending |
+| M6 | Goals, achievements, streaks, personal records | ✅ PRs + streaks + achievements + goals |
+| M7 | Polish: theme switcher, haptics, motion design | ✅ |
+| M8 | Tests + Play Store release | 🟡 55 unit tests green; Play Store pending |
+
+### v0.5 — Reliability + product transformation
+- 🛡️ **Crash-safe workouts** — every GPS fix is journaled to disk instantly; a killed
+  process loses at most the last fix, and the session is restored as a paused draft
+  on next launch (resume / finish / discard). Finish only claims "saved" once the
+  workout is really on disk; failed saves keep the draft instead of losing data.
+- 🧭 **GPS quality gate** — accuracy ceiling, impossible-jump rejection, spike
+  rejection, duplicate minimization (unit-tested). Distance comes only from
+  accepted fixes.
+- 💾 **New storage** — small versioned metadata + per-workout route files with
+  atomic writes, backup restore, and automatic migration from the v0.4 blob.
+  One corrupt workout can never wipe your history.
+- 🏠 **Home rebuilt** — Energy Score with category/trend/explainable factors,
+  daily recommendation (rule-based, transparent), real activity rings
+  (move/exercise/stand), today's stats, workout-in-progress banner.
+- 📈 **Progress tab** — 14-day distance chart, Energy Score trend, consistency,
+  personal records, lifetime totals (pure Canvas charts, no chart library).
+- 🏆 **Personal records + insights** — fastest 1 km / 1 mile / 5 km, longest
+  distance/time, best day; per-workout insights from your own history.
+- 🏃 **Workout flow upgraded** — 3-2-1 countdown, haptics, GPS-readiness card,
+  accidental-touch protection on Finish, speed-colored route, splits, elevation.
+- 📚 **History** — date-grouped timeline, type filters, sync badges, delete.
+- 👤 **Profile** — real lifetime stats, weight + step goal settings, cloud-sync
+  status with retry, persisted session (relaunch skips sign-in).
+- 🌙 Health Connect now uses your local timezone for daily totals.
 
 ### v0.4.1 — Theme fixes
-- 🌗 **Dark mode actually works now** — fixed a v0.4 regression where the transparent scaffold let the light window background bleed through; added a night XML theme for splash/window
-- 🖥️ **Theme switcher on the sign-in page** — top-right pill cycles System → Light → Dark (and it actually receives taps now)
+- 🌗 Dark mode works (night XML theme + painted background).
+- 🖥️ Theme switcher on the sign-in page.
 
 ### v0.4 — Richness pass
-- 👤 **Accounts** — email+password sign-up/sign-in (Supabase) + Google linking; sign-in screen with Google/Email tabs
-- 🎛️ **More settings** — units (km/mi), battery saver, auto-pause, daily calorie goal, theme (System/Light/Dark), workout alarm
-- ✉️ **Help & Contact** — FAQ + one-tap email to the developer (Profile → Help & contact)
-- 🌌 **Living aurora background** — slow-drifting color blobs that adapt to light/dark themes (Instagram-style)
-- 🚀 **Speed tracker** — live km/h readout during workouts + max speed in summaries
-- 🧪 **Test suite** — 13 unit tests over the workout math (run: `gradlew test`)
+- 👤 Email + Google accounts (Supabase), guest mode, settings (units, battery saver,
+  auto-pause, calorie goal, alarm), Help & Contact, aurora background, speed tracker.
 
 ### v0.3.1 — Oura-smooth design pass
-- 💯 **Energy Score** — Oura-style daily 0-100 gauge (steps + workout distance + day path), glowing arc with hero numeral
-- ✨ **Breathing glow rings**, hairline-border cards, huge light-weight numerals, springy motion, press feedback
-- 🔥 **Activity streaks + achievement badges** (3/7/14/30 days)
+- 💯 Energy Score gauge, breathing glow rings, hairline cards, streaks + badges.
 
-### v0.3 features
-- 🏃 **Live workouts** — pick Run/Walk/Cycle/Hike, full-screen real map with the route drawing live, timer, pause/resume, finish summary (distance/time/pace/kcal), foreground-service notification
-- 🗺️ **Real map everywhere** — pan/zoom/rotate/compass, dark map in dark mode (MapLibre + OpenFreeMap, free, no API key)
-- 📚 **History** — saved workouts with route thumbnails → full route detail screen
-- ☁️ **Cloud-ready** — Supabase REST sync + Google sign-in via CredentialManager (see below)
-- ❤️ **Health Connect** — steps + heart rate on Home when available
-- 🌗 Theme switcher (System/Light/Dark) + ⏰ workout alarm (v0.2)
+### v0.3
+- 🏃 Live workouts, real map everywhere (MapLibre + OpenFreeMap, free, no API key),
+  history with route thumbnails, Health Connect steps/HR.
 
-## ☁️ Cloud setup (M5 — 10 minutes, free)
+## ☁️ Cloud setup (10 minutes, free)
 
-1. **Supabase project** — create a free project at https://supabase.com → Settings → API → copy the **Project URL** and **anon public key**
-2. **Table** — in Supabase SQL Editor, run:
+1. **Supabase project** — https://supabase.com → Settings → API → copy **Project URL** + **anon key**
+2. **Table** — SQL Editor:
    ```sql
    create table public.workouts (
      id uuid primary key default gen_random_uuid(),
@@ -61,47 +76,42 @@ The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
    create policy "own workouts" on public.workouts
      for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
    ```
-3. **Google sign-in** — Google Cloud Console → APIs & Services → Credentials → **Create OAuth client ID** → type **Web application** → copy the **Client ID**
-4. **Wire it up** — edit `local.properties` (never committed):
+3. **Google sign-in** — Google Cloud Console → Credentials → OAuth client ID (Web application)
+4. **Wire it up** — `local.properties` (never committed):
    ```properties
    supabase.url=https://YOURPROJECT.supabase.co
    supabase.key=YOUR_ANON_KEY
    google.clientId=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
    ```
-5. Rebuild: `gradlew.bat assembleDebug` — Google sign-in and workout cloud sync activate automatically. Without these keys the app runs perfectly local-only.
-
-## Open in Android Studio
-
-1. Android Studio → **Open** → select this folder (`fitness-app/Energy`)
-2. Wait for Gradle sync (first run downloads dependencies)
-3. Run ▶ on an emulator or your phone
+5. Rebuild — Google sign-in and workout sync activate automatically.
+   Without keys the app runs perfectly local-only (offline-first by design).
 
 ## Build from the terminal
 
 ```bash
-# Windows (from this folder)
-gradlew.bat assembleDebug        # builds debug APK
-gradlew.bat installDebug         # installs on a connected device/emulator
+export JAVA_HOME="C:\Users\Adidi\jdk-21"   # Temurin 21 (AS JBR = JDK 25 breaks Kotlin 2.1.x)
+gradlew.bat clean
+gradlew.bat test          # 55 unit tests: GPS filter, PRs, score engine, codec, math
+gradlew.bat assembleDebug
 ```
-
-If Gradle can't find a JDK, use the Temurin 21 install for this project (the
-Android Studio bundled JBR is JDK 25, which Kotlin 2.1.x cannot parse):
-
-```bash
-export JAVA_HOME="C:\Users\Adidi\jdk-21"
-```
-
-> `local.properties` with `sdk.dir` is created automatically by Android Studio on first open.
 
 ## Project structure
 
 ```
 app/src/main/java/com/energy/app/
-├─ di/            # AppContainer (manual DI until Hilt lands in M5)
-├─ data/auth/     # AuthRepository seam — guest now, Supabase later
+├─ di/            # AppContainer (manual DI) + application scope
+├─ data/
+│  ├─ auth/       # PersistedAuthRepository (session survives restart)
+│  ├─ cloud/      # Supabase REST (sign-in, workout sync, sync states)
+│  ├─ health/     # Health Connect (steps/HR, local-timezone daily bounds)
+│  ├─ location/   # LocationTracker (filtered, batched, battery-aware) + DayPath
+│  ├─ settings/   # DataStore prefs (units, goals, weight, alarm, theme)
+│  ├─ stats/      # EnergyScoreEngine (pure, explainable) + lifetime stats
+│  └─ workout/    # WorkoutSession (crash-safe), GpsFilter, WorkoutMath,
+│                 # WorkoutRepository (split storage + migration), PRs, insights
 └─ ui/
-   ├─ navigation/ # EnergyNavHost + MainScaffold (4 tabs)
-   ├─ theme/      # Energy design system (colors, type, shapes, motion)
-   ├─ components/ # EnergyButton, ActivityRing, SkeletonBox, GradientBackground
-   └─ screens/    # splash, auth, home, workout, history, profile
+   ├─ navigation/ # NavHost + 5-tab MainScaffold
+   ├─ theme/      # Energy design system (colors, type, shapes, motion, icons)
+   ├─ components/ # MapWidget (speed-colored routes), rings, gauge, cards
+   └─ screens/    # splash, auth, home, progress, workout, history, profile
 ```
