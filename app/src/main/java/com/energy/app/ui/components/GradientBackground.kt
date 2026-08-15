@@ -8,7 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.energy.app.ui.theme.DeepSpace
+import com.energy.app.ui.theme.EnergyBackground
 import com.energy.app.ui.theme.EnergyOrange
 
 /**
@@ -23,7 +23,7 @@ fun GradientBackground(
     Box(
         modifier = modifier.background(
             Brush.verticalGradient(
-                colors = listOf(DeepSpace, Color(0xFF241013), Color(0xFF1A0F1E))
+                colors = listOf(EnergyBackground, Color(0xFF241013), Color(0xFF1A0F1E))
             )
         )
     ) {

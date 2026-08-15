@@ -23,6 +23,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     private val alarmScheduler: WorkoutAlarmScheduler = container.workoutAlarmScheduler
 
     val user: AuthUser? = repository.currentUser()
+    val streak: StateFlow<Int> = container.statsRepository.streak
     val themeMode: StateFlow<ThemeMode> = settings.themeMode
         .let { flow -> MutableStateFlow(ThemeMode.SYSTEM).also { s ->
             viewModelScope.launch { flow.collect { s.value = it } }

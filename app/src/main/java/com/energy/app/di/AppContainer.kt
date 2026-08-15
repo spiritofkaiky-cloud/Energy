@@ -42,6 +42,10 @@ class AppContainer(application: Application) {
         com.energy.app.data.health.HealthRepository(application)
     }
 
+    val statsRepository: com.energy.app.data.stats.StatsRepository by lazy {
+        com.energy.app.data.stats.StatsRepository(application)
+    }
+
     val cloudRepository: CloudRepository by lazy { CloudRepository() }
 
     val googleSignInHelper: GoogleSignInHelper by lazy { GoogleSignInHelper(application) }

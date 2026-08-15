@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -137,6 +138,38 @@ fun ProfileScreen(
             StatColumn(value = "—", label = "Best pace")
         }
         Spacer(Modifier.height(32.dp))
+
+        // ── Achievements (M6) ───────────────────────────────────────
+        val streak by viewModel.streak.collectAsState()
+        SettingsCard(title = "Achievements") {
+            Text(
+                text = "🔥 $streak day streak — move daily to unlock badges.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                com.energy.app.data.stats.Achievements.forEach { a ->
+                    val unlocked = streak >= a.days
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.alpha(if (unlocked) 1f else 0.3f)
+                    ) {
+                        Text(text = a.emoji, style = MaterialTheme.typography.headlineMedium)
+                        Text(
+                            text = a.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
 
         // ── Appearance ──────────────────────────────────────────────
         SettingsCard(title = "Appearance") {

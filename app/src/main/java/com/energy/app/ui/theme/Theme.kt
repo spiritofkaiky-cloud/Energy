@@ -10,49 +10,40 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.energy.app.data.settings.ThemeMode
 
-private val LightColors = lightColorScheme(
-    primary = EnergyOrange,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFE0C7),
-    onPrimaryContainer = Color(0xFF4A2400),
-    secondary = EnergyCoral,
-    onSecondary = Color.White,
-    tertiary = EnergyGreen,
-    background = SoftWhite,
-    onBackground = DeepSpace,
-    surface = Color.White,
-    onSurface = DeepSpace,
-    surfaceVariant = Color(0xFFEFEFF5),
-    onSurfaceVariant = Color(0xFF5A5A66),
-    error = Color(0xFFD32F2F),
-    onError = Color.White
-)
+val LocalDarkTheme = staticCompositionLocalOf { false }
 
+// Oura-style: cards read as slightly-raised planes with hairline borders,
+// not elevated shadow boxes.
 private val DarkColors = darkColorScheme(
     primary = EnergyOrange,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFF5C2E00),
-    onPrimaryContainer = Color(0xFFFFDBC2),
-    secondary = EnergyCoral,
-    onSecondary = Color(0xFF33100E),
-    tertiary = EnergyGreen,
-    background = DeepSpace,
-    onBackground = SoftWhite,
-    surface = DeepSurface,
-    onSurface = SoftWhite,
-    surfaceVariant = Color(0xFF26262F),
-    onSurfaceVariant = MistGray,
-    error = Color(0xFFEF5350),
-    onError = Color(0xFF3B0000)
+    primaryContainer = EnergySurfaceHigh,
+    onPrimaryContainer = EnergyTextPrimary,
+    secondary = EnergyMint,
+    background = EnergyBackground,
+    onBackground = EnergyTextPrimary,
+    surface = EnergySurface,
+    onSurface = EnergyTextPrimary,
+    surfaceVariant = EnergySurfaceHigh,
+    onSurfaceVariant = EnergyTextSecondary,
+    outline = EnergyHairlineStrong
 )
 
-/** Whether the resolved theme is dark — MapWidget etc. use this for map style. */
-val LocalDarkTheme = staticCompositionLocalOf { false }
+private val LightColors = lightColorScheme(
+    primary = EnergyOrange,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFE8D8),
+    onPrimaryContainer = Color(0xFF3A1B00),
+    secondary = Color(0xFF1B8A64),
+    background = Color(0xFFF7F6F4),
+    onBackground = Color(0xFF19191D),
+    surface = Color.White,
+    onSurface = Color(0xFF19191D),
+    surfaceVariant = Color(0xFFF0EFEC),
+    onSurfaceVariant = Color(0x8A19191D),
+    outline = Color(0x1A000000)
+)
 
-/**
- * Theme with user-pickable mode: System / Light / Dark (APP_SPEC §6 + v0.2).
- * Selection persists via SettingsRepository; Material You lands in M7.
- */
 @Composable
 fun EnergyTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
