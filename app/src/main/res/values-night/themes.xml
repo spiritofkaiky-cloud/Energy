@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Night variant: dark window + splash background so the app never
+         flashes light when the Compose theme is dark. -->
+    <style name="Theme.Energy" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#08080C</item>
+        <item name="android:statusBarColor">#08080C</item>
+        <item name="android:navigationBarColor">#08080C</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="Theme.Energy.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#08080C</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_bolt</item>
+        <item name="postSplashScreenTheme">@style/Theme.Energy</item>
+    </style>
+</resources>

@@ -3,6 +3,7 @@ package com.energy.app.ui.screens.auth
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,12 +30,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.energy.app.ui.components.AuroraBackground
 import com.energy.app.ui.components.EnergyButton
+import com.energy.app.data.settings.ThemeMode
 import com.energy.app.ui.theme.EnergyOrange
 
 /**
@@ -47,6 +50,7 @@ fun SignInScreen(
     viewModel: SignInViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
     var mode by remember { mutableStateOf("google") } // google | email
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -56,7 +60,11 @@ fun SignInScreen(
         if (state.signedIn) onSignedIn()
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         AuroraBackground()
         Column(
             modifier = Modifier
@@ -177,6 +185,7 @@ fun SignInScreen(
                 onClick = { viewModel.signInAsGuest() },
                 shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -213,6 +222,37 @@ fun SignInScreen(
 
             Spacer(Modifier.height(40.dp))
         }
+
+        // Theme switcher — top-right, drawn ABOVE the scrollable column so
+        // it always receives taps (System → Light → Dark).
+        val themeEmoji = when (themeMode) {
+            ThemeMode.SYSTEM -> "🖥️"
+            ThemeMode.LIGHT -> "☀️"
+            ThemeMode.DARK -> "🌙"
+        }
+        Surface(
+            onClick = {
+                viewModel.setThemeMode(
+                    when (themeMode) {
+                        ThemeMode.SYSTEM -> ThemeMode.LIGHT
+                        ThemeMode.LIGHT -> ThemeMode.DARK
+                        ThemeMode.DARK -> ThemeMode.SYSTEM
+                    }
+                )
+            },
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 18.dp, end = 18.dp)
+        ) {
+            Text(
+                text = "$themeEmoji  ${themeMode.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
+            )
+        }
     }
 }
 
@@ -228,7 +268,8 @@ private fun ModeTab(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
         color = if (selected) EnergyOrange.copy(alpha = 0.18f)
-        else MaterialTheme.colorScheme.surface
+        else MaterialTheme.colorScheme.surface,
+        border = if (!selected) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null
     ) {
         Text(
             text = text,

@@ -7,6 +7,8 @@ import com.energy.app.EnergyApplication
 import com.energy.app.data.auth.AuthRepository
 import com.energy.app.data.auth.AuthUser
 import com.energy.app.data.cloud.CloudRepository
+import com.energy.app.data.settings.SettingsRepository
+import com.energy.app.data.settings.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,9 +25,19 @@ class SignInViewModel(application: Application) : AndroidViewModel(application) 
     private val container = (application as EnergyApplication).container
     private val repository: AuthRepository = container.authRepository
     private val cloud: CloudRepository = container.cloudRepository
+    private val settings: SettingsRepository = container.settingsRepository
 
     private val _uiState = MutableStateFlow(SignInUiState())
     val uiState: StateFlow<SignInUiState> = _uiState.asStateFlow()
+
+    val themeMode: StateFlow<ThemeMode> = settings.themeMode
+        .let { flow -> MutableStateFlow(ThemeMode.SYSTEM).also { s ->
+            viewModelScope.launch { flow.collect { s.value = it } }
+        } }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { settings.setThemeMode(mode) }
+    }
 
     fun signInAsGuest() = launchSignIn {
         repository.signInAsGuest()

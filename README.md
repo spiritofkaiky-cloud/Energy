@@ -21,6 +21,10 @@ The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
 | M7 | Polish: theme switcher, haptics | ✅ Oura-style polish (v0.3.1) |
 | M8 | Tests + Play Store release | ✅ 13 unit tests green; Play Store pending |
 
+### v0.4.1 — Theme fixes
+- 🌗 **Dark mode actually works now** — fixed a v0.4 regression where the transparent scaffold let the light window background bleed through; added a night XML theme for splash/window
+- 🖥️ **Theme switcher on the sign-in page** — top-right pill cycles System → Light → Dark (and it actually receives taps now)
+
 ### v0.4 — Richness pass
 - 👤 **Accounts** — email+password sign-up/sign-in (Supabase) + Google linking; sign-in screen with Google/Email tabs
 - 🎛️ **More settings** — units (km/mi), battery saver, auto-pause, daily calorie goal, theme (System/Light/Dark), workout alarm
