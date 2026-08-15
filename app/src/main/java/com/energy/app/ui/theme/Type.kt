@@ -7,75 +7,96 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 /**
- * Oura-style type scale: huge, light numerals for scores/timers, muted
- * secondary text, generous sizes.
+ * Energy 2026 type scale (§5): typographic confidence over bold-everything.
+ *
+ *  - Display numerals: huge, Light weight, tight tracking, tabular figures
+ *    ("tnum") so changing numbers never jitter — numbers ARE the identity.
+ *  - Metadata labels: tiny, uppercase, wide tracking — the quiet counterpart
+ *    to the display numerals.
+ *  - Body weights stay Regular/Medium; SemiBold is reserved for real
+ *    emphasis.
  */
+private val TabularFigures = "'tnum'"
+
 val EnergyTypography = Typography(
-    // Hero numerals — the Oura signature (e.g. "94" readiness score)
+    // ── Display numerals (hero) ──────────────────────────────────────────
     displayLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Light,
-        fontSize = 76.sp,
-        letterSpacing = (-2).sp
+        fontSize = 72.sp,
+        letterSpacing = (-2).sp,
+        fontFeatureSettings = "'tnum'"
     ),
     displayMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Light,
-        fontSize = 56.sp,
-        letterSpacing = (-1.5).sp
+        fontSize = 52.sp,
+        letterSpacing = (-1.5).sp,
+        fontFeatureSettings = "'tnum'"
     ),
     displaySmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Light,
-        fontSize = 40.sp,
-        letterSpacing = (-0.5).sp
+        fontSize = 38.sp,
+        letterSpacing = (-0.5).sp,
+        fontFeatureSettings = "'tnum'"
     ),
+    // ── Headings ─────────────────────────────────────────────────────────
     headlineLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 30.sp,
+        fontSize = 28.sp,
         letterSpacing = (-0.3).sp
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp
+        fontSize = 22.sp
     ),
     headlineSmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp
+        fontSize = 18.sp
     ),
+    // ── Titles ───────────────────────────────────────────────────────────
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 18.sp
+        fontWeight = FontWeight.Medium,
+        fontSize = 17.sp,
+        fontFeatureSettings = "'tnum'"
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
-        fontSize = 16.sp
+        fontSize = 15.sp,
+        fontFeatureSettings = "'tnum'"
     ),
     titleSmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
-        fontSize = 14.sp
+        fontSize = 13.sp,
+        fontFeatureSettings = "'tnum'"
     ),
+    // ── Body ─────────────────────────────────────────────────────────────
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
-        fontSize = 16.sp
+        fontSize = 16.sp,
+        lineHeight = 24.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp
+        fontSize = 14.sp,
+        lineHeight = 21.sp
     ),
     bodySmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
-        fontSize = 12.sp
+        fontSize = 12.sp,
+        lineHeight = 18.sp
     ),
+    // ── Labels ───────────────────────────────────────────────────────────
     labelLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
@@ -84,13 +105,21 @@ val EnergyTypography = Typography(
     labelMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        letterSpacing = 0.3.sp
+        fontSize = 12.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
-        letterSpacing = 0.4.sp
+        letterSpacing = 0.8.sp
     )
+)
+
+/** Uppercase metadata label — "ENERGY SCORE", "TODAY'S MOVEMENT", etc. */
+val MetaLabel = TextStyle(
+    fontFamily = FontFamily.Default,
+    fontWeight = FontWeight.Medium,
+    fontSize = 11.sp,
+    letterSpacing = 1.6.sp,
+    fontFeatureSettings = "'tnum'"
 )

@@ -6,17 +6,21 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,16 +60,23 @@ import com.energy.app.data.workout.WorkoutMath
 import com.energy.app.data.workout.WorkoutState
 import com.energy.app.data.workout.WorkoutType
 import com.energy.app.ui.components.MapWidget
+import com.energy.app.ui.components.Metric
 import com.energy.app.ui.theme.EnergyCoral
 import com.energy.app.ui.theme.EnergyMint
 import com.energy.app.ui.theme.EnergyOrange
+import com.energy.app.ui.theme.MetaLabel
+import com.energy.app.ui.theme.Motion
+import com.energy.app.ui.theme.Radius
+import com.energy.app.ui.theme.Space
 import kotlinx.coroutines.delay
 
 /**
- * Live workout — full-screen map, big timer, live stats, GPS status,
- * accidental-touch protection on Finish, crash-draft restore, and a
- * finish flow that only claims "saved" once the workout is on disk.
- * APP_SPEC §9.
+ * LIVE (§18–19) — a professional sports instrument.
+ *
+ * Hierarchy: CURRENT PACE hero → distance/time → map → controls.
+ * Pausing transforms the screen: big PAUSED state, frozen map, prominent
+ * resume. Finish requires a deliberate second tap. Saving is honest —
+ * "saved" appears only when the workout is on disk.
  */
 @Composable
 fun LiveWorkoutScreen(
@@ -86,7 +98,6 @@ fun LiveWorkoutScreen(
     val insights by viewModel.insights.collectAsState()
     val lastFix by viewModel.lastFixMillis.collectAsState()
 
-    // ── countdown (only for fresh sessions) ───────────────────────────────
     var countdown by remember { mutableIntStateOf(if (state == WorkoutState.IDLE) 3 else 0) }
     var finished by remember { mutableStateOf(false) }
     var confirmFinish by remember { mutableStateOf(false) }
@@ -102,7 +113,6 @@ fun LiveWorkoutScreen(
         }
     }
 
-    // Auto-cancel the confirm-finish window.
     LaunchedEffect(confirmFinish) {
         if (confirmFinish) {
             delay(4_000)
@@ -110,7 +120,6 @@ fun LiveWorkoutScreen(
         }
     }
 
-    // GPS silence hint: no accepted fix for 30 s while recording.
     val gpsSilent = state == WorkoutState.RECORDING &&
         lastFix > 0 && System.currentTimeMillis() - lastFix > 30_000
 
@@ -122,57 +131,56 @@ fun LiveWorkoutScreen(
             interactive = true
         )
 
-        // ── Top bar ───────────────────────────────────────────────────────
+        // ── Hero: current pace (the instrument's face) ────────────────────
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.45f))
                 .statusBarsPadding()
-                .padding(vertical = 10.dp),
+                .padding(vertical = Space.SM),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "${type.emoji} ${type.label}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     color = Color.White,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Medium
                 )
                 if (restored) {
-                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "· restored",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = EnergyOrange
+                        text = " · RESTORED",
+                        style = MetaLabel,
+                        color = EnergyOrange,
+                        modifier = Modifier.padding(start = Space.XS)
                     )
                 }
             }
             Text(
-                text = WorkoutMath.formatDuration(elapsed),
-                style = MaterialTheme.typography.displayLarge,
+                text = WorkoutMath.formatPace(
+                    WorkoutMath.paceSecondsPerKm(distance, elapsed),
+                    imperial = false
+                ).replace(" /km", ""),
+                style = MaterialTheme.typography.displayMedium,
                 color = Color.White,
-                fontWeight = FontWeight.ExtraBold
+                fontWeight = FontWeight.Light,
+                fontSize = 46.sp
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = WorkoutMath.formatSpeed(viewModel.currentSpeedKmh),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = EnergyOrange,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "· max ${WorkoutMath.formatSpeed(maxSpeed)}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White.copy(alpha = 0.7f)
-                )
+            Text(
+                text = "CURRENT PACE",
+                style = MetaLabel,
+                color = Color.White.copy(alpha = 0.65f)
+            )
+            Spacer(Modifier.height(Space.XS))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.LG)) {
+                LabeledNumber(WorkoutMath.formatDistance(distance), "DISTANCE")
+                LabeledNumber(WorkoutMath.formatDuration(elapsed), "TIME")
+                LabeledNumber(WorkoutMath.formatSpeed(viewModel.currentSpeedKmh), "SPEED")
             }
         }
 
-        // ── GPS status chip ───────────────────────────────────────────────
+        // ── GPS silence chip ──────────────────────────────────────────────
         AnimatedVisibility(
             visible = gpsSilent,
             enter = fadeIn() + scaleIn(),
@@ -182,44 +190,59 @@ fun LiveWorkoutScreen(
             Card(
                 shape = RoundedCornerShape(50),
                 colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = Space.XL)
             ) {
                 Text(
                     text = "Location isn't updating. Check location access or move somewhere with a clearer GPS signal.",
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.White,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
+                    modifier = Modifier.padding(horizontal = Space.MD, vertical = Space.SM)
                 )
             }
         }
 
-        // ── Bottom control sheet ──────────────────────────────────────────
+        // ── PAUSED morph — the interface transforms, not a tiny label ─────
+        AnimatedVisibility(
+            visible = state == WorkoutState.PAUSED,
+            enter = fadeIn(tween(Motion.Medium)) + scaleIn(initialScale = 1.04f),
+            exit = fadeOut(tween(Motion.Fast)) + scaleOut(targetScale = 1.04f),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "PAUSED",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Light,
+                    color = Color.White
+                )
+                Text(
+                    text = "Resume when you're ready",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+        }
+
+        // ── Bottom controls ───────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.55f))
+                .background(Color.Black.copy(alpha = 0.6f))
                 .navigationBarsPadding()
-                .padding(20.dp),
+                .padding(Space.LG)
+                .animateContentSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                LiveStat("DISTANCE", WorkoutMath.formatDistance(distance))
-                LiveStat("PACE", WorkoutMath.formatPace(WorkoutMath.paceSecondsPerKm(distance, elapsed)))
-                LiveStat("SPEED", WorkoutMath.formatSpeed(viewModel.currentSpeedKmh))
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.MD),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ControlButton(
                     label = if (state == WorkoutState.PAUSED) "Resume" else "Pause",
                     color = EnergyOrange,
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         buzz(context, light = true)
                         viewModel.togglePause(context)
@@ -227,7 +250,8 @@ fun LiveWorkoutScreen(
                 )
                 ControlButton(
                     label = if (confirmFinish) "Tap again to finish" else "Finish",
-                    color = if (confirmFinish) EnergyCoral else Color.White.copy(alpha = 0.28f),
+                    color = if (confirmFinish) EnergyCoral else Color.White.copy(alpha = 0.26f),
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         buzz(context, light = true)
                         if (confirmFinish) {
@@ -240,23 +264,22 @@ fun LiveWorkoutScreen(
                     }
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.XS))
             Text(
                 text = when {
-                    state == WorkoutState.PAUSED -> "Paused — resume to keep tracking"
-                    restored && state == WorkoutState.PAUSED ->
-                        "Restored from a previous session — resume or finish it"
-                    else -> "Live · taps on the map zoom & pan"
+                    state == WorkoutState.PAUSED -> "Map frozen · resume to keep tracking"
+                    restored -> "Restored from a previous session"
+                    else -> "Tap the map to pan & zoom"
                 },
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.75f)
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.65f)
             )
             if (restored) {
                 TextButton(onClick = {
                     viewModel.discardDraft()
                     onExit()
                 }) {
-                    Text("Discard this draft", color = Color.White.copy(alpha = 0.6f))
+                    Text("Discard this draft", color = Color.White.copy(alpha = 0.55f))
                 }
             }
         }
@@ -267,17 +290,16 @@ fun LiveWorkoutScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.82f)),
+                .background(Color.Black.copy(alpha = 0.85f)),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "$countdown",
-                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 140.sp),
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 128.sp),
                     fontWeight = FontWeight.ExtraBold,
                     color = EnergyOrange
                 )
-                Spacer(Modifier.height(8.dp))
                 Text(
                     text = "Get ready…",
                     style = MaterialTheme.typography.titleLarge,
@@ -288,28 +310,23 @@ fun LiveWorkoutScreen(
     }
 
     // ── Saving overlay ────────────────────────────────────────────────────
-    AnimatedVisibility(
-        visible = finished && saveStatus == SaveStatus.SAVING,
-        enter = fadeIn(),
-        exit = fadeOut()
-    ) {
+    AnimatedVisibility(visible = finished && saveStatus == SaveStatus.SAVING) {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.75f)),
+                .background(Color.Black.copy(alpha = 0.78f)),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(color = EnergyOrange)
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Space.MD))
                 Text(
                     text = "Saving your workout…",
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.White
                 )
-                Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "Stored on this device first, then synced when possible.",
+                    text = "Stored on this device first.",
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White.copy(alpha = 0.7f)
                 )
@@ -330,147 +347,137 @@ fun LiveWorkoutScreen(
             contentAlignment = Alignment.Center
         ) {
             Card(
-                shape = RoundedCornerShape(28.dp),
+                shape = RoundedCornerShape(Radius.XL),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(28.dp)
+                    .padding(Space.XL)
             ) {
-                Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    Modifier.padding(Space.XL),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
-                        text = "⚠️ Couldn't save",
+                        text = "Couldn't save",
                         style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.XS))
                     Text(
                         text = "Your workout is kept as a draft on this device. " +
-                            "It will be restored automatically the next time you open Energy.",
+                            "It will be restored the next time you open Energy.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(20.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TextButton(onClick = { viewModel.retrySave() }) {
-                            Text("Retry save")
-                        }
-                        TextButton(onClick = { viewModel.discardDraft(); onExit() }) {
-                            Text("Discard")
-                        }
+                    Spacer(Modifier.height(Space.LG))
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.SM)) {
+                        TextButton(onClick = { viewModel.retrySave() }) { Text("Retry") }
+                        TextButton(onClick = { viewModel.discardDraft(); onExit() }) { Text("Discard") }
                     }
                 }
             }
         }
     }
 
-    // ── Summary overlay ───────────────────────────────────────────────────
+    // ── Summary overlay — celebration first, analysis second (§20–21) ─────
     AnimatedVisibility(
         visible = finished && saveStatus == SaveStatus.SAVED && saved != null,
-        enter = fadeIn() + scaleIn(initialScale = 0.9f),
+        enter = fadeIn() + scaleIn(initialScale = 0.94f),
         exit = fadeOut()
     ) {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f)),
+                .background(Color.Black.copy(alpha = 0.75f)),
             contentAlignment = Alignment.Center
         ) {
             saved?.let { w ->
                 Card(
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(Radius.XL),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp)
+                        .padding(Space.XL)
                 ) {
-                    Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        Modifier.padding(Space.XL),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
-                            text = "${w.type.emoji} Workout saved",
+                            text = "${w.type.emoji}  ${w.type.label} saved",
                             style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.SemiBold
                         )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Stored on this device" +
-                                if (w.syncState == com.energy.app.data.workout.SyncState.SYNCED) " · synced to cloud ✓"
-                                else " · cloud sync pending (works offline)",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(16.dp))
+                        if (newRecords.isNotEmpty()) {
+                            Text(
+                                text = "🏆 New personal record",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = EnergyOrange,
+                                modifier = Modifier.padding(top = Space.XS)
+                            )
+                            newRecords.forEach { r ->
+                                Text(
+                                    text = "${r.label}: ${r.valueText}",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(Space.LG))
+
+                        // Hero numbers
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            StatColumn(value = WorkoutMath.formatDistance(w.distanceMeters), label = "Distance")
-                            StatColumn(value = WorkoutMath.formatDuration(w.durationMillis), label = "Time")
-                            StatColumn(
+                            Metric(
+                                value = WorkoutMath.formatDistance(w.distanceMeters),
+                                label = "Distance",
+                                valueStyle = MaterialTheme.typography.displaySmall
+                            )
+                            Metric(
+                                value = WorkoutMath.formatDuration(w.durationMillis),
+                                label = "Time",
+                                valueStyle = MaterialTheme.typography.displaySmall
+                            )
+                            Metric(
                                 value = WorkoutMath.formatPace(
                                     WorkoutMath.paceSecondsPerKm(w.distanceMeters, w.durationMillis)
-                                ),
-                                label = "Pace"
-                            )
-                            StatColumn(value = "${w.calories}", label = "kcal")
-                        }
-                        if (w.elevationGainMeters > 0) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = "Elevation gain ${String.format("%.0f", w.elevationGainMeters)} m · " +
-                                    "max ${WorkoutMath.formatSpeed(w.maxSpeedKmh)}",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ).replace(" /km", ""),
+                                label = "Pace",
+                                valueStyle = MaterialTheme.typography.displaySmall
                             )
                         }
-
-                        if (newRecords.isNotEmpty()) {
-                            Spacer(Modifier.height(16.dp))
-                            Card(
-                                shape = RoundedCornerShape(18.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = EnergyOrange.copy(alpha = 0.14f)
-                                )
-                            ) {
-                                Column(Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "🏆 New personal record!",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(Modifier.height(6.dp))
-                                    newRecords.forEach { r ->
-                                        Text(
-                                            text = "${r.label}: ${r.valueText}",
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        Spacer(Modifier.height(Space.MD))
+                        Text(
+                            text = "${w.calories} kcal" +
+                                (if (w.elevationGainMeters > 0)
+                                    " · +${String.format("%.0f", w.elevationGainMeters)} m" else "") +
+                                " · max ${WorkoutMath.formatSpeed(w.maxSpeedKmh)}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                         if (insights.isNotEmpty()) {
-                            Spacer(Modifier.height(12.dp))
-                            Column(Modifier.fillMaxWidth()) {
-                                insights.forEach { i ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.Top
-                                    ) {
-                                        Text(i.emoji, style = MaterialTheme.typography.bodyLarge)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            i.text,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                            Spacer(Modifier.height(Space.MD))
+                            insights.take(2).forEach { i ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(i.emoji, style = MaterialTheme.typography.bodyLarge)
+                                    Spacer(Modifier.width(Space.XS))
+                                    Text(
+                                        i.text,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                         }
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(Space.LG))
                         TextButton(onClick = onExit) {
                             Text("Done", style = MaterialTheme.typography.titleMedium)
                         }
@@ -481,7 +488,63 @@ fun LiveWorkoutScreen(
     }
 }
 
-/** Cached mapping so the route list isn't rebuilt on every recomposition. */
+@Composable
+private fun LabeledNumber(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.White,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = label,
+            style = MetaLabel,
+            color = Color.White.copy(alpha = 0.55f)
+        )
+    }
+}
+
+@Composable
+private fun ControlButton(
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = tween(Motion.Instant),
+        label = "controlScale"
+    )
+    Box(
+        modifier = modifier
+            .height(58.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(CircleShape)
+            .background(color)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+/** Cached mappings so route lists aren't rebuilt on every recomposition. */
 @Composable
 private fun rememberPoints(points: List<com.energy.app.data.workout.WorkoutPoint>): List<com.energy.app.data.location.DayPoint> =
     remember(points) {
@@ -509,58 +572,5 @@ private fun buzz(context: Context, light: Boolean) {
             @Suppress("DEPRECATION")
             vibrator.vibrate(if (light) 30L else 120L)
         }
-    }
-}
-
-@Composable
-private fun LiveStat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = Color.White.copy(alpha = 0.7f)
-        )
-    }
-}
-
-@Composable
-private fun StatColumn(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun RowScope.ControlButton(label: String, color: Color, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .height(56.dp)
-            .clip(CircleShape)
-            .background(color)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }

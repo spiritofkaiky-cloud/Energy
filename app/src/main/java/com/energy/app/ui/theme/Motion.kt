@@ -5,10 +5,19 @@ import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 
 /**
- * Oura-smooth motion: lower-stiffness springs that settle without snap,
- * long soft breathing, quick light press feedback.
+ * Energy motion language (§30): alive, not busy.
+ *
+ *  Durations: Instant (80ms — button feedback) → Fast (160 — micro
+ *  interactions) → Medium (280 — navigation) → Slow (480 — hero
+ *  transitions). Springs carry the physicality.
  */
 object Motion {
+    /** Durations (ms). */
+    const val Instant = 80
+    const val Fast = 160
+    const val Medium = 280
+    const val Slow = 480
+
     /** Gentle settle — screens and cards glide in. */
     val Soft = spring<Float>(
         dampingRatio = 0.92f,

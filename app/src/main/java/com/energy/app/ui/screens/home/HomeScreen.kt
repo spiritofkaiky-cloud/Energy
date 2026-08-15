@@ -6,13 +6,13 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,16 +22,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -53,30 +49,36 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.energy.app.data.location.DayPoint
-import com.energy.app.data.stats.Achievements
-import com.energy.app.data.stats.ScoreFactor
 import com.energy.app.data.workout.WorkoutMath
+import com.energy.app.data.workout.WorkoutState
 import com.energy.app.data.workout.WorkoutType
-import com.energy.app.ui.components.ActivityRing
 import com.energy.app.ui.components.EnergyButton
-import com.energy.app.ui.components.HairlineCard
+import com.energy.app.ui.components.EnergyRing
+import com.energy.app.ui.components.EnergyRingLegend
 import com.energy.app.ui.components.MapWidget
-import com.energy.app.ui.components.ScoreGauge
-import com.energy.app.ui.theme.EnergyHairline
+import com.energy.app.ui.components.Metric
+import com.energy.app.ui.components.ScoreHero
+import com.energy.app.ui.components.SectionHeader
+import com.energy.app.ui.components.StatStrip
 import com.energy.app.ui.theme.EnergyOrange
+import com.energy.app.ui.theme.MetaLabel
+import com.energy.app.ui.theme.Radius
 import com.energy.app.ui.theme.RingExercise
 import com.energy.app.ui.theme.RingMove
 import com.energy.app.ui.theme.RingStand
+import com.energy.app.ui.theme.Space
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
 /**
- * The strongest screen in the app (APP_SPEC §6): answers
- * "How am I doing today?" with the Energy Score hero, real activity rings,
- * today's stats, a movement map, and an explainable daily recommendation.
- * Everything shown is computed from real signals — nothing hardcoded.
+ * TODAY (§7) — a personal daily health briefing, not a widget dashboard.
+ *
+ * Composition (top → bottom):
+ *   context line → greeting → Score Hero → daily insight → Energy Ring →
+ *   stat strip → movement map (edge-to-edge) → streak → health status.
+ * Sections, not cards. Orange appears only as accent.
  */
 @Composable
 fun HomeScreen(
@@ -100,12 +102,7 @@ fun HomeScreen(
     val workoutType by viewModel.workoutType.collectAsState()
     val userName by viewModel.userName.collectAsState()
 
-    var showScoreDetails by remember { mutableStateOf(false) }
-    var showRingDetails by remember { mutableStateOf(false) }
-
-    var hasPermission by remember {
-        mutableStateOf(hasLocationPermission(context))
-    }
+    var hasPermission by remember { mutableStateOf(hasLocationPermission(context)) }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -118,31 +115,33 @@ fun HomeScreen(
         if (hasPermission) viewModel.startTracking()
     }
 
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    val routeKm = dayPathKm(points)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = Space.XL)
     ) {
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Space.MD))
 
-        // ── Header: greeting + date ───────────────────────────────────────
+        // ── Context line (level 4 — whisper) ──────────────────────────────
         Text(
-            text = "${greetingForHour(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))}, $userName",
-            style = MaterialTheme.typography.headlineMedium,
+            text = "TODAY · " +
+                SimpleDateFormat("EEEE, MMM d", Locale.US).format(Date()).uppercase(),
+            style = MetaLabel,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // ── Greeting (level 1–2) ──────────────────────────────────────────
+        Spacer(Modifier.height(Space.XS))
+        Text(
+            text = "${greetingForHour(hour)}, $userName",
+            style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = SimpleDateFormat("EEEE, MMM d", Locale.US).format(Date()),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(24.dp))
 
         // ── Active workout banner ─────────────────────────────────────────
         AnimatedVisibility(visible = activeWorkout) {
@@ -151,302 +150,228 @@ fun HomeScreen(
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onResumeWorkout(workoutType)
                 },
-                shape = MaterialTheme.shapes.medium,
-                color = EnergyOrange.copy(alpha = 0.16f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, EnergyOrange.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(Radius.MD),
+                color = EnergyOrange.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, EnergyOrange.copy(alpha = 0.4f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp)
+                    .padding(top = Space.MD)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                    modifier = Modifier.padding(horizontal = Space.MD, vertical = Space.SM),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = workoutType.emoji,
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    Spacer(Modifier.width(12.dp))
+                    Text(workoutType.emoji, style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.width(Space.SM))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = if (workoutState == com.energy.app.data.workout.WorkoutState.PAUSED)
+                            text = if (workoutState == WorkoutState.PAUSED)
                                 "Workout paused — tap to resume" else "Workout in progress",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
+                            style = MaterialTheme.typography.titleSmall,
+                            color = EnergyOrange
                         )
                         Text(
-                            text = "Your session survives restarts — pick up where you left off.",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = "Your session survives restarts.",
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Text("→", color = EnergyOrange)
                 }
             }
         }
 
-        // ── Hero: Energy Score ────────────────────────────────────────────
-        Surface(
-            onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                showScoreDetails = !showScoreDetails
-            },
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, EnergyHairline),
-            modifier = Modifier.fillMaxWidth()
+        // ── Score hero (the centerpiece) ──────────────────────────────────
+        Spacer(Modifier.height(Space.XL))
+        ScoreHero(score = score, modifier = Modifier.fillMaxWidth())
+
+        Spacer(Modifier.height(Space.XXL))
+
+        // ── Daily insight (level 2 — personal guidance) ───────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
         ) {
-            Column(
-                Modifier.padding(vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                ScoreGauge(score = score.value, size = 210)
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = score.category,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    score.trendVs7Day?.let { trend ->
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = if (trend >= 0) "▲ +$trend" else "▼ ${-trend}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (trend >= 0) com.energy.app.ui.theme.EnergyMint
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = "vs 7-day avg",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
+            Text(
+                text = "💡",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(Modifier.width(Space.SM))
+            Column {
                 Text(
-                    text = "Estimate from your activity — not a medical measurement.",
+                    text = score.recommendation.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = score.recommendation.basis,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.alpha(0.85f)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(Space.XXL))
+
+        // ── Energy Ring + legend ──────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EnergyRing(
+                move = rings.move,
+                exercise = rings.exercise,
+                stand = rings.stand,
+                sizeDp = 148
+            )
+            Spacer(Modifier.width(Space.XL))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "TODAY'S BALANCE",
+                    style = MetaLabel,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(Space.MD))
+                RingLegendRow(RingMove, "Move", rings.moveDetail)
+                Spacer(Modifier.height(Space.SM))
+                RingLegendRow(RingExercise, "Exercise", rings.exerciseDetail)
+                Spacer(Modifier.height(Space.SM))
+                RingLegendRow(RingStand, "Stand", rings.standDetail)
+                Spacer(Modifier.height(Space.MD))
+                Text(
+                    text = "Estimates from your activity — not medical measurements.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.alpha(0.8f)
                 )
-                AnimatedVisibility(
-                    visible = showScoreDetails,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
-                ) {
-                    Column(Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) {
-                        Spacer(Modifier.height(12.dp))
-                        score.factors.forEach { f ->
-                            FactorRow(f)
-                            Spacer(Modifier.height(8.dp))
-                        }
-                        Text(
-                            text = "Tap the score to collapse.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Space.XXL))
 
-        // ── Daily recommendation ──────────────────────────────────────────
-        HairlineCard {
-            Row(verticalAlignment = Alignment.Top) {
-                Text(text = "💡", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = "Today's take",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = score.recommendation.text,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = score.recommendation.basis,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // ── Activity rings (real data) ────────────────────────────────────
-        Surface(
-            onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                showRingDetails = !showRingDetails
-            },
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, EnergyHairline),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(Modifier.padding(vertical = 20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RingWithLabel(progress = rings.move, color = RingMove, label = "Move")
-                    RingWithLabel(progress = rings.exercise, color = RingExercise, label = "Exercise")
-                    RingWithLabel(progress = rings.stand, color = RingStand, label = "Stand")
-                }
-                AnimatedVisibility(
-                    visible = showRingDetails,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
-                ) {
-                    Column(Modifier.padding(horizontal = 24.dp)) {
-                        Spacer(Modifier.height(12.dp))
-                        RingDetailLine(color = RingMove, text = "Move · ${rings.moveDetail}")
-                        RingDetailLine(color = RingExercise, text = "Exercise · ${rings.exerciseDetail}")
-                        RingDetailLine(color = RingStand, text = "Stand · ${rings.standDetail}")
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Rings are estimates from your workouts, steps and movement.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Tap a ring for details",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // ── Today's stats ─────────────────────────────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            PillChip(
-                modifier = Modifier.weight(1f),
-                label = "Steps",
-                value = String.format("%,d", today.steps),
-                sub = if (healthData == null) "no source" else "of ${prefs.stepGoal}"
+        // ── Stat strip (level 2 numbers) ──────────────────────────────────
+        StatStrip(
+            stats = listOf(
+                compact(today.steps.toDouble()) to "steps",
+                "%.1f".format(today.distanceKm) to "km",
+                "${today.workoutMinutes}" to "min",
+                "${today.activeCalories}" to "kcal"
             )
-            PillChip(
-                modifier = Modifier.weight(1f),
-                label = "Distance",
-                value = WorkoutMath.formatDistance(today.distanceKm * 1000),
-                sub = "workouts + movement"
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            PillChip(
-                modifier = Modifier.weight(1f),
-                label = "Active kcal",
-                value = "${today.activeCalories}",
-                sub = "est. from activity"
-            )
-            PillChip(
-                modifier = Modifier.weight(1f),
-                label = "Avg HR",
-                value = today.heartRateBpm?.let { "$it" } ?: "—",
-                sub = today.heartRateBpm?.let { "bpm · Health Connect" } ?: "no source yet"
-            )
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // ── Today's movement map ──────────────────────────────────────────
-        Text(
-            text = "Today's movement",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "Steps from Health Connect when connected · calories estimated",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = Space.XS)
+                .alpha(0.8f)
+        )
+
+        Spacer(Modifier.height(Space.XXL))
+
+        // ── Today's movement (edge-to-edge map object) ────────────────────
+        SectionHeader(
+            label = "Today's movement",
+            actionLabel = if (points.isNotEmpty()) "View full route →" else null,
+            onAction = if (points.isNotEmpty()) ({ onOpenFullMap() }) else null
+        )
+        Spacer(Modifier.height(Space.SM))
+
         if (hasPermission) {
-            Box {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(232.dp)
+                    .clip(RoundedCornerShape(Radius.XL))
+            ) {
                 MapWidget(
                     points = points,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .clip(MaterialTheme.shapes.large)
-                        .border(1.dp, EnergyHairline, MaterialTheme.shapes.large)
-                        .clickable { onOpenFullMap() }
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onOpenFullMap() }
+                        ),
+                    interactive = false
                 )
+                // Floating metrics — the map is the object, numbers float on it.
                 Surface(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(10.dp),
+                        .align(Alignment.BottomStart)
+                        .padding(Space.MD),
+                    shape = RoundedCornerShape(Radius.MD),
+                    color = Color.Black.copy(alpha = 0.55f)
+                ) {
+                    Column(Modifier.padding(horizontal = Space.MD, vertical = Space.SM)) {
+                        Text(
+                            text = if (routeKm > 0) WorkoutMath.formatDistance(routeKm * 1000) else "—",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White,
+                            fontWeight = FontWeight.Light
+                        )
+                        Text(
+                            text = "MOVED TODAY",
+                            style = MetaLabel,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(Space.MD),
                     shape = RoundedCornerShape(50),
                     color = Color.Black.copy(alpha = 0.55f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = Space.SM, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = if (tracking) "●" else "○",
                             color = if (tracking) EnergyOrange else Color.White.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelSmall
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
                             text = if (tracking) "Tracking" else "Paused",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
                             color = Color.White
                         )
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            MovementSummaryLine(points = points, today = today)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Tap the map to open full screen · day tracking pauses in the background to save battery",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (points.isEmpty()) {
+                Text(
+                    text = "Start moving and today's route will draw itself here.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Space.SM)
+                )
+            }
         } else {
             Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(1.dp, EnergyHairline),
+                shape = RoundedCornerShape(Radius.XL),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(Modifier.padding(20.dp)) {
+                Column(Modifier.padding(Space.LG), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "🗺️", style = MaterialTheme.typography.displayMedium)
                     Text(
-                        text = "🗺️",
-                        style = MaterialTheme.typography.displaySmall
+                        text = "Your day, drawn on a map",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Start moving and today's route will appear here.",
+                        text = "Location powers routes and the movement map. It never leaves your device.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Space.XS)
                     )
-                    Spacer(Modifier.height(12.dp))
                     EnergyButton(
-                        text = "Enable day tracking",
+                        text = "Enable location",
                         onClick = {
                             launcher.launch(
                                 arrayOf(
@@ -455,81 +380,83 @@ fun HomeScreen(
                                 )
                             )
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.padding(top = Space.MD)
                     )
                 }
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(Space.XXL))
 
-        // ── Streak ────────────────────────────────────────────────────────
-        HairlineCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "$streak",
-                        style = MaterialTheme.typography.headlineLarge
-                    )
-                    Text(
-                        text = "day streak 🔥",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Achievements.forEach { a ->
-                    val unlocked = streak >= a.days
-                    Text(
-                        text = a.emoji,
-                        style = MaterialTheme.typography.headlineMedium,
-                        modifier = Modifier.alpha(if (unlocked) 1f else 0.25f)
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // ── Health Connect status ─────────────────────────────────────────
-        if (healthData != null && viewModel.healthAvailable) {
-            HairlineCard {
+        // ── Streak + health status (quiet footer rows) ────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$streak",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Light,
+                color = EnergyOrange
+            )
+            Spacer(Modifier.width(Space.SM))
+            Column {
                 Text(
-                    text = "Health Connect · connected",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    text = "day streak",
+                    style = MaterialTheme.typography.titleSmall
                 )
-                Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "Steps, heart rate and more sync from your device's health store.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Move daily to keep it alive",
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        } else {
-            HairlineCard {
+            Spacer(Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Health Connect",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = if (viewModel.healthAvailable)
-                        "Permissions pending — grant access in the Health Connect app to see steps and heart rate."
-                    else
-                        "Not installed on this device. Steps and heart rate stay empty until a health source is connected.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = if (healthData != null && viewModel.healthAvailable) "♥ connected"
+                    else if (viewModel.healthAvailable) "♥ permissions pending"
+                    else "♥ no health source",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (healthData != null && viewModel.healthAvailable)
+                        MaterialTheme.colorScheme.secondary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Space.XXL))
     }
+}
+
+@Composable
+private fun RingLegendRow(color: Color, label: String, detail: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .width(8.dp)
+                .height(8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(color)
+        )
+        Spacer(Modifier.width(Space.SM))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.width(72.dp)
+        )
+        Text(
+            text = detail,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private fun compact(n: Double): String = when {
+    n >= 10_000 -> "%.1fK".format(n / 1_000)
+    n >= 1_000 -> "%.1fK".format(n / 1_000)
+    else -> n.toInt().toString()
 }
 
 private fun greetingForHour(hour: Int): String = when (hour) {
@@ -538,125 +465,15 @@ private fun greetingForHour(hour: Int): String = when (hour) {
     else -> "Good evening"
 }
 
-@Composable
-private fun FactorRow(f: ScoreFactor) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(f.label, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                f.detail,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = "${f.points} pts",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = if (f.points >= 0) MaterialTheme.colorScheme.primary
-            else com.energy.app.ui.theme.EnergyCoral
+private fun dayPathKm(points: List<DayPoint>): Double {
+    if (points.size < 2) return 0.0
+    var km = 0.0
+    for (i in 1 until points.size) {
+        km += com.energy.app.data.stats.StatsRepository.haversineKm(
+            points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng
         )
     }
-}
-
-@Composable
-private fun RingDetailLine(color: Color, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
-        Box(
-            Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-private fun RingWithLabel(progress: Float, color: Color, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        ActivityRing(progress = progress, color = color, sizeDp = 86, glow = true)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun PillChip(modifier: Modifier = Modifier, label: String, value: String, sub: String? = null) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, EnergyHairline, RoundedCornerShape(20.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            sub?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.alpha(0.8f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MovementSummaryLine(points: List<DayPoint>, today: TodayStats) {
-    val km = StatsPathLength.km(points)
-    val dominant = today.workoutMinutes
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = "${WorkoutMath.formatDistance(km * 1000)} of movement today",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        if (dominant > 0) {
-            Text(
-                text = "🏃 $dominant min workout time",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-/** Small pure helper so Home can compute map-card distance without the VM. */
-private object StatsPathLength {
-    fun km(points: List<DayPoint>): Double {
-        if (points.size < 2) return 0.0
-        var km = 0.0
-        for (i in 1 until points.size) {
-            km += com.energy.app.data.stats.StatsRepository.haversineKm(
-                points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng
-            )
-        }
-        return km
-    }
+    return km
 }
 
 private fun hasLocationPermission(context: Context): Boolean =

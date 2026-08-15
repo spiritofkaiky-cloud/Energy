@@ -21,6 +21,33 @@ The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
 | M7 | Polish: theme switcher, haptics, motion design | ✅ |
 | M8 | Tests + Play Store release | 🟡 55 unit tests green; Play Store pending |
 
+### v0.5.1 — 2026 premium redesign
+- 🎨 **New design language** — semantic color system (layered blue-black dark /
+  warm-paper light), typographic confidence (light-weight display numerals with
+  tabular figures, uppercase metadata labels), spacing/shape/motion tokens
+  (`Space`, `Radius`, `Motion`, `MetaLabel`), orange demoted to a true accent.
+- 🏠 **Home rebuilt as a daily briefing** — context line → greeting → Energy
+  Score hero (arc + glow + explainable factors) → daily insight → one integrated
+  **Energy Ring** with legend → compact stat strip → edge-to-edge movement map
+  with floating metrics → quiet streak/health footer. Sections, not cards.
+- 🧭 **4-tab navigation** — TODAY / ACTIVITY / PROGRESS / PROFILE with a custom
+  hairline bar, accent state, spring lift and haptic ticks. History merged into
+  the ACTIVITY tab as a chronological timeline (filters preserved).
+- 🏃 **Workout experience rebuilt** — "Ready to move?" entry with a visual
+  type selector and goal chips; the live screen is a sports instrument (giant
+  current-pace hero, distance/time/speed row, big physical controls); PAUSED
+  morphs the whole screen; the summary celebrates first (hero numbers + PRs +
+  insights) and analysis lives in the detail screen's Performance/Effort/
+  Highlights sections.
+- 📈 **Progress analytics** — WEEK / MONTH / YEAR with one major chart at a
+  time (smooth gradient line chart / rounded bars), headline + delta, then
+  consistency, records and all-time numbers.
+- 👤 **Profile as a control center** — identity + lifetime stats, grouped
+  GOALS / WORKOUT / APPEARANCE / REMINDER / CLOUD sections with steppers and
+  toggles instead of form rows.
+- 🧹 Dead components removed; charts, rings, buttons and empty states are now
+  shared design-system components (no per-screen styling).
+
 ### v0.5 — Reliability + product transformation
 - 🛡️ **Crash-safe workouts** — every GPS fix is journaled to disk instantly; a killed
   process loses at most the last fix, and the session is restored as a paused draft

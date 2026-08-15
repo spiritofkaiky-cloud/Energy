@@ -14,36 +14,65 @@ import com.energy.app.data.settings.ThemeMode
 
 val LocalDarkTheme = staticCompositionLocalOf { false }
 
-// Oura-style: cards read as slightly-raised planes with hairline borders,
-// not elevated shadow boxes.
+/**
+ * Energy 2026 themes (§41, §42).
+ *
+ * Dark: layered blue-black surfaces, restrained orange accent.
+ * Light: warm paper surfaces with its own contrast logic — never just an
+ * inverted dark theme.
+ */
 private val DarkColors = darkColorScheme(
     primary = EnergyOrange,
     onPrimary = Color.White,
     primaryContainer = EnergySurfaceHigh,
     onPrimaryContainer = EnergyTextPrimary,
     secondary = EnergyMint,
+    onSecondary = EnergyBackground,
+    secondaryContainer = Color(0xFF10312A),
+    onSecondaryContainer = EnergyMint,
+    tertiary = EnergySky,
     background = EnergyBackground,
     onBackground = EnergyTextPrimary,
     surface = EnergySurface,
     onSurface = EnergyTextPrimary,
     surfaceVariant = EnergySurfaceHigh,
     onSurfaceVariant = EnergyTextSecondary,
-    outline = EnergyHairlineStrong
+    surfaceContainer = EnergySurface,
+    surfaceContainerHigh = EnergySurfaceHigh,
+    surfaceContainerHighest = EnergySurfaceMax,
+    outline = EnergyHairlineStrong,
+    outlineVariant = EnergyHairline,
+    error = EnergyCoral,
+    onError = Color.White,
+    errorContainer = Color(0xFF3A1A20),
+    onErrorContainer = Color(0xFFFFC9CE)
 )
 
 private val LightColors = lightColorScheme(
-    primary = EnergyOrange,
+    primary = Color(0xFFE8680A),          // slightly deepened orange for contrast
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFE8D8),
+    primaryContainer = Color(0xFFFFE3CC),
     onPrimaryContainer = Color(0xFF3A1B00),
-    secondary = Color(0xFF1B8A64),
-    background = Color(0xFFF7F6F4),
-    onBackground = Color(0xFF19191D),
-    surface = Color.White,
-    onSurface = Color(0xFF19191D),
-    surfaceVariant = Color(0xFFF0EFEC),
-    onSurfaceVariant = Color(0x8A19191D),
-    outline = Color(0x1A000000)
+    secondary = Color(0xFF0E7C57),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFD6F3E6),
+    onSecondaryContainer = Color(0xFF0B3B2B),
+    tertiary = Color(0xFF1F6FBF),
+    background = LightBackground,
+    onBackground = LightTextPrimary,
+    surface = LightSurface,
+    onSurface = LightTextPrimary,
+    surfaceVariant = LightSurfaceHigh,
+    onSurfaceVariant = LightTextSecondary,
+    surfaceContainer = LightSurface,
+    surfaceContainerHigh = LightSurfaceHigh,
+    surfaceContainerHighest = Color(0xFFE9E6E0),
+    outline = LightHairlineStrong,
+    outlineVariant = LightHairline,
+    error = Color(0xFFC43B4E),
+    onError = Color.White,
+    errorContainer = Color(0xFFFADFE3),
+    onErrorContainer = Color(0xFF57121E)
 )
 
 @Composable
@@ -57,7 +86,7 @@ fun EnergyTheme(
         ThemeMode.DARK -> true
     }
 
-    // Keep status-bar icon contrast in sync with the theme (dark-mode fix).
+    // Keep status-bar icon contrast in sync with the theme.
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {

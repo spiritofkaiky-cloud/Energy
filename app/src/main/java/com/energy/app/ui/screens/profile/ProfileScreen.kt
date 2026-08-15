@@ -14,17 +14,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -40,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,15 +45,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.energy.app.data.cloud.CloudStatus
 import com.energy.app.data.settings.ThemeMode
 import com.energy.app.data.settings.Units
+import com.energy.app.data.workout.WorkoutMath
 import com.energy.app.ui.components.EnergyButton
+import com.energy.app.ui.components.Metric
+import com.energy.app.ui.components.SectionHeader
 import com.energy.app.ui.theme.EnergyCoral
 import com.energy.app.ui.theme.EnergyOrange
+import com.energy.app.ui.theme.MetaLabel
+import com.energy.app.ui.theme.Space
 
 /**
- * Profile & settings — v0.2: theme mode switcher, workout alarm,
- * working sign-out. APP_SPEC §5.8.
+ * PROFILE (§25) — a personal control center: identity + lifetime numbers up
+ * top, grouped settings below. Sections with hairline dividers, not a form.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,15 +73,18 @@ fun ProfileScreen(
     val themeMode by viewModel.themeMode.collectAsState()
     val alarm by viewModel.alarm.collectAsState()
     val user by viewModel.user.collectAsState()
+    val userData = user
     val lifetime by viewModel.lifetime.collectAsState()
     val cloud by viewModel.cloudState.collectAsState()
     val pendingSync by viewModel.pendingSyncCount.collectAsState()
+    val streak by viewModel.streak.collectAsState()
+    val prefs by viewModel.preferences.collectAsState()
 
     var showTimePicker by remember { mutableStateOf(false) }
 
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* notification will appear once granted */ }
+    ) { }
 
     LaunchedEffect(signedOut) {
         if (signedOut) onSignOut()
@@ -88,316 +94,192 @@ fun ProfileScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = Space.XL)
     ) {
-        Spacer(Modifier.height(24.dp))
-        Box(
-            modifier = Modifier
-                .size(96.dp)
-                .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(EnergyOrange, EnergyCoral))),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = (user?.name?.firstOrNull()?.uppercaseChar() ?: 'E').toString(),
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = user?.name ?: "Runner",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = user?.email ?: "Guest mode — data stays on this device",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(12.dp))
-        if (user?.isGuest == true) {
-            Card(
-                shape = RoundedCornerShape(50),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+        Spacer(Modifier.height(Space.LG))
+
+        // ── Identity ──────────────────────────────────────────────────────
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(EnergyOrange, EnergyCoral))),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "GUEST",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    text = (userData?.name?.firstOrNull()?.uppercaseChar() ?: 'E').toString(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
-        }
-        Spacer(Modifier.height(24.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatColumn(value = "${lifetime.workoutCount}", label = "Workouts")
-            StatColumn(value = String.format("%.1f", lifetime.totalKm), label = "km total")
-            StatColumn(
-                value = lifetime.bestPaceSecondsPerKm?.let {
-                    com.energy.app.data.workout.WorkoutMath.formatPace(it)
-                } ?: "—",
-                label = "Best pace"
-            )
-        }
-        Spacer(Modifier.height(20.dp))
-
-        // ── Cloud status ──────────────────────────────────────────────
-        if (cloud.status != com.energy.app.data.cloud.CloudStatus.NOT_CONFIGURED) {
-            SettingsCard(title = "Cloud sync") {
-                val (line, pending) = when (cloud.status) {
-                    com.energy.app.data.cloud.CloudStatus.SIGNED_IN,
-                    com.energy.app.data.cloud.CloudStatus.SYNCED ->
-                        "Signed in as ${cloud.userEmail ?: "your account"}" to pendingSync
-                    com.energy.app.data.cloud.CloudStatus.SIGNED_OUT ->
-                        "Not signed in — workouts stay on this device" to 0
-                    else -> "Syncing…" to 0
-                }
+            Spacer(Modifier.width(Space.MD))
+            Column {
                 Text(
-                    text = line,
+                    text = userData?.name ?: "Runner",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = when {
+                        userData?.isGuest == true -> "Guest · data stays on this device"
+                        userData?.email != null -> userData.email.orEmpty()
+                        else -> "Energy athlete"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (pending > 0) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "$pending workout(s) waiting to sync",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = { viewModel.retryPendingSync() }) {
-                            Text("Retry now")
-                        }
-                    }
-                }
+                Text(
+                    text = "🔥 $streak day streak · ${activityLevel(lifetime)}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = EnergyOrange,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
             }
-            Spacer(Modifier.height(16.dp))
         }
 
-        // ── Achievements (M6) ───────────────────────────────────────
-        val streak by viewModel.streak.collectAsState()
-        SettingsCard(title = "Achievements") {
+        Spacer(Modifier.height(Space.XL))
+
+        // ── Lifetime ──────────────────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Metric("${lifetime.workoutCount}", "Workouts", valueStyle = MaterialTheme.typography.titleLarge)
+            Metric("%.1f".format(lifetime.totalKm), "km total", valueStyle = MaterialTheme.typography.titleLarge)
+            Metric(
+                lifetime.bestPaceSecondsPerKm?.let {
+                    WorkoutMath.formatPace(it).replace(" /km", "")
+                } ?: "—",
+                "Best pace",
+                valueStyle = MaterialTheme.typography.titleLarge
+            )
+        }
+
+        Spacer(Modifier.height(Space.XXL))
+
+        // ── GOALS ─────────────────────────────────────────────────────────
+        SectionHeader(label = "Goals")
+        Spacer(Modifier.height(Space.XS))
+        StepperRow("Daily step goal", String.format("%,d", prefs.stepGoal),
+            onMinus = { viewModel.setStepGoal(prefs.stepGoal - 1_000) },
+            onPlus = { viewModel.setStepGoal(prefs.stepGoal + 1_000) })
+        StepperRow("Daily calorie goal", "${prefs.calorieGoal} kcal",
+            onMinus = { viewModel.setCalorieGoal(prefs.calorieGoal - 50) },
+            onPlus = { viewModel.setCalorieGoal(prefs.calorieGoal + 50) })
+        StepperRow("Weight", "${prefs.weightKg} kg",
+            onMinus = { viewModel.setWeightKg(prefs.weightKg - 1) },
+            onPlus = { viewModel.setWeightKg(prefs.weightKg + 1) })
+
+        Spacer(Modifier.height(Space.XXL))
+
+        // ── WORKOUT ───────────────────────────────────────────────────────
+        SectionHeader(label = "Workout")
+        Spacer(Modifier.height(Space.XS))
+        ToggleRow(
+            title = "Auto-pause workouts",
+            sub = "Pause when you stop moving",
+            checked = prefs.autoPause,
+            onToggle = { viewModel.setAutoPause(it) }
+        )
+        ToggleRow(
+            title = "Battery saver",
+            sub = "Wider GPS intervals while idle",
+            checked = prefs.batterySaver,
+            onToggle = { viewModel.setBatterySaver(it) }
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = Space.SM),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Units", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            FilterChip(selected = prefs.units == Units.METRIC,
+                onClick = { viewModel.setUnits(Units.METRIC) }, label = { Text("km") })
+            Spacer(Modifier.width(Space.XS))
+            FilterChip(selected = prefs.units == Units.IMPERIAL,
+                onClick = { viewModel.setUnits(Units.IMPERIAL) }, label = { Text("mi") })
+        }
+
+        Spacer(Modifier.height(Space.XXL))
+
+        // ── APPEARANCE ────────────────────────────────────────────────────
+        SectionHeader(label = "Appearance")
+        Spacer(Modifier.height(Space.XS))
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.XS)) {
+            ThemeMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = themeMode == mode,
+                    onClick = { viewModel.setThemeMode(mode) },
+                    label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(Space.XXL))
+
+        // ── REMINDER ──────────────────────────────────────────────────────
+        SectionHeader(label = "Exercise reminder")
+        Spacer(Modifier.height(Space.XS))
+        ToggleRow(
+            title = "Daily workout reminder",
+            sub = if (alarm.enabled)
+                "Every day at ${String.format("%02d:%02d", alarm.hour, alarm.minute)}"
+            else "Nudge me to move at the same time every day",
+            checked = alarm.enabled,
+            onToggle = { enabled ->
+                if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                viewModel.setAlarmEnabled(enabled)
+            }
+        )
+        if (alarm.enabled) {
+            TextButton(onClick = { showTimePicker = true }) {
+                Text("Change time", color = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        // ── CLOUD ─────────────────────────────────────────────────────────
+        if (cloud.status != CloudStatus.NOT_CONFIGURED) {
+            Spacer(Modifier.height(Space.XXL))
+            SectionHeader(label = "Cloud sync")
+            Spacer(Modifier.height(Space.XS))
             Text(
-                text = "🔥 $streak day streak — move daily to unlock badges.",
+                text = when (cloud.status) {
+                    CloudStatus.SIGNED_IN, CloudStatus.SYNCED ->
+                        "Signed in as ${cloud.userEmail ?: "your account"}"
+                    CloudStatus.SIGNED_OUT -> "Not signed in — workouts stay on this device"
+                    else -> "Syncing…"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                com.energy.app.data.stats.Achievements.forEach { a ->
-                    val unlocked = streak >= a.days
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.alpha(if (unlocked) 1f else 0.3f)
-                    ) {
-                        Text(text = a.emoji, style = MaterialTheme.typography.headlineMedium)
-                        Text(
-                            text = a.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+            if (pendingSync > 0) {
+                TextButton(onClick = { viewModel.retryPendingSync() }) {
+                    Text("Retry $pendingSync pending sync", color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-
-        // ── Appearance ──────────────────────────────────────────────
-        SettingsCard(title = "Appearance") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ThemeMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = themeMode == mode,
-                        onClick = { viewModel.setThemeMode(mode) },
-                        label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) }
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-
-        // ── Preferences ─────────────────────────────────────────────
-        val prefs by viewModel.preferences.collectAsState()
-        SettingsCard(title = "Preferences") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Units",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = prefs.units == Units.METRIC,
-                    onClick = { viewModel.setUnits(Units.METRIC) },
-                    label = { Text("km / kg") }
-                )
-                Spacer(Modifier.width(8.dp))
-                FilterChip(
-                    selected = prefs.units == Units.IMPERIAL,
-                    onClick = { viewModel.setUnits(Units.IMPERIAL) },
-                    label = { Text("mi / lb") }
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Battery saver", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = "Slower GPS updates while idle",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(checked = prefs.batterySaver, onCheckedChange = { viewModel.setBatterySaver(it) })
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Auto-pause workouts", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = "Pause when you stop moving",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(checked = prefs.autoPause, onCheckedChange = { viewModel.setAutoPause(it) })
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Daily calorie goal",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = { viewModel.setCalorieGoal(prefs.calorieGoal - 50) }) {
-                    Text("−")
-                }
-                Text(
-                    text = "${prefs.calorieGoal} kcal",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                TextButton(onClick = { viewModel.setCalorieGoal(prefs.calorieGoal + 50) }) {
-                    Text("+")
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Weight (for calorie estimates)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = { viewModel.setWeightKg(prefs.weightKg - 1) }) {
-                    Text("−")
-                }
-                Text(
-                    text = "${prefs.weightKg} kg",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                TextButton(onClick = { viewModel.setWeightKg(prefs.weightKg + 1) }) {
-                    Text("+")
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Daily step goal",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = { viewModel.setStepGoal(prefs.stepGoal - 1_000) }) {
-                    Text("−")
-                }
-                Text(
-                    text = String.format("%,d", prefs.stepGoal),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                TextButton(onClick = { viewModel.setStepGoal(prefs.stepGoal + 1_000) }) {
-                    Text("+")
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // ── Exercise reminder ───────────────────────────────────────
-        SettingsCard(title = "Exercise reminder") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Daily workout alarm",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Nudge me to move at the same time every day",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = alarm.enabled,
-                    onCheckedChange = { enabled ->
-                        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                        viewModel.setAlarmEnabled(enabled)
-                    }
-                )
-            }
-            if (alarm.enabled) {
-                Spacer(Modifier.height(12.dp))
-                TextButton(
-                    onClick = { showTimePicker = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Time: ${String.format("%02d:%02d", alarm.hour, alarm.minute)}  ·  tap to change",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(32.dp))
-
-        TextButton(onClick = onOpenContact, modifier = Modifier.fillMaxWidth()) {
-            Text("❓  Help & contact")
-        }
-        Spacer(Modifier.height(8.dp))
-
+        Spacer(Modifier.height(Space.XXL))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(Modifier.height(Space.MD))
+        TextButton(onClick = onOpenContact) { Text("Help & contact") }
         EnergyButton(
             text = "Sign out",
             onClick = { viewModel.signOut() },
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(16.dp))
         Text(
-            text = "Energy v0.5.0 · local-first · MapLibre + OpenFreeMap · Health Connect",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = "Energy 0.5.1 · local-first · MapLibre + OpenFreeMap",
+            style = MetaLabel,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(vertical = Space.MD)
+                .align(Alignment.CenterHorizontally)
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Space.LG))
     }
 
     if (showTimePicker) {
@@ -423,36 +305,48 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun SettingsCard(title: String, content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+private fun StepperRow(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Space.SM),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.padding(18.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(12.dp))
-            content()
-        }
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        TextButton(onClick = onMinus) { Text("−") }
+        Text(
+            value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium
+        )
+        TextButton(onClick = onPlus) { Text("+") }
     }
 }
 
 @Composable
-private fun StatColumn(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+private fun ToggleRow(title: String, sub: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Space.SM),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                sub,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onToggle)
     }
+}
+
+private fun activityLevel(lifetime: com.energy.app.data.stats.LifetimeStats): String = when {
+    lifetime.workoutCount >= 100 -> "Seasoned athlete"
+    lifetime.workoutCount >= 30 -> "Consistent mover"
+    lifetime.workoutCount >= 10 -> "Building the habit"
+    lifetime.workoutCount >= 1 -> "Getting started"
+    else -> "First workout ahead"
 }
