@@ -17,9 +17,14 @@ The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
 | M3 | Live GPS tracking + full-screen map + foreground service | ✅ |
 | M4 | Workout history + route detail + full-screen day map | ✅ |
 | M5 | Supabase cloud sync + Google sign-in (code ready — see ☁️ Cloud setup) | 🟡 needs your Supabase project |
-| M6 | Goals, achievements, streaks | 🟡 exercise alarm done |
-| M7 | Polish: theme switcher, haptics | 🟡 dark/light/system done |
+| M6 | Goals, achievements, streaks | ✅ streaks + achievements + workout alarm |
+| M7 | Polish: theme switcher, haptics | ✅ Oura-style polish (v0.3.1) |
 | M8 | Tests + Play Store release | ⏳ |
+
+### v0.3.1 — Oura-smooth design pass
+- 💯 **Energy Score** — Oura-style daily 0-100 gauge (steps + workout distance + day path), glowing arc with hero numeral
+- ✨ **Breathing glow rings**, hairline-border cards, huge light-weight numerals, springy motion, press feedback
+- 🔥 **Activity streaks + achievement badges** (3/7/14/30 days)
 
 ### v0.3 features
 - 🏃 **Live workouts** — pick Run/Walk/Cycle/Hike, full-screen real map with the route drawing live, timer, pause/resume, finish summary (distance/time/pace/kcal), foreground-service notification
