@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Android
+captures/
+*.apk
+*.aab
+output-metadata.json
+
+# OS
+.DS_Store
+Thumbs.db

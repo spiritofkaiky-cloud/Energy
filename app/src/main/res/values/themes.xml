@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base app theme (Compose owns everything after the splash) -->
+    <style name="Theme.Energy" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Android 12+ splash screen (APP_SPEC §5.1) -->
+    <style name="Theme.Energy.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/energy_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_bolt</item>
+        <item name="postSplashScreenTheme">@style/Theme.Energy</item>
+    </style>
+</resources>
