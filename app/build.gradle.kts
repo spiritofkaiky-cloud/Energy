@@ -1,19 +1,35 @@
+import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
+// Read local secrets (supabase.url / supabase.key) from local.properties —
+// never committed to git (local.properties is in .gitignore).
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val supabaseUrl: String = localProps.getProperty("supabase.url", "")
+val supabaseKey: String = localProps.getProperty("supabase.key", "")
+val googleClientId: String = localProps.getProperty("google.clientId", "")
+
 android {
     namespace = "com.energy.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.energy.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
     }
 
     buildTypes {
@@ -31,6 +47,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -57,5 +74,9 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.play.services.location)
     implementation(libs.maplibre.android)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.googleid)
+    implementation(libs.androidx.health.connect)
     debugImplementation(libs.androidx.ui.tooling)
 }

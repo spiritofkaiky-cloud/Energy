@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -50,10 +52,14 @@ import com.energy.app.ui.theme.EnergyOrange
  * and M2 skeletons. APP_SPEC §5.4.
  */
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
+fun HomeScreen(
+    onOpenFullMap: () -> Unit = {},
+    viewModel: HomeViewModel = viewModel()
+) {
     val context = LocalContext.current
     val points by viewModel.points.collectAsState()
     val tracking by viewModel.tracking.collectAsState()
+    val dailyHealth by viewModel.dailyHealth.collectAsState()
 
     var hasPermission by remember {
         mutableStateOf(hasLocationPermission(context))
@@ -124,6 +130,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             .fillMaxWidth()
                             .height(220.dp)
                             .clip(RoundedCornerShape(20.dp))
+                            .clickable { onOpenFullMap() }
                     )
                     Surface(
                         modifier = Modifier
@@ -159,6 +166,17 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                             Text("Pause")
                         }
                     }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Tap the map to open full screen",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             } else {
                 Column(Modifier.padding(20.dp)) {
@@ -197,17 +215,65 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.height(12.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SkeletonBox(modifier = Modifier.fillMaxWidth(), height = 72.dp, corner = 20.dp)
-            SkeletonBox(modifier = Modifier.fillMaxWidth(), height = 72.dp, corner = 20.dp)
+        val health = dailyHealth
+        if (health != null && viewModel.healthAvailable) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                HealthStatCard(
+                    emoji = "👟",
+                    label = "Steps",
+                    value = String.format("%,d", health.steps)
+                )
+                HealthStatCard(
+                    emoji = "❤️",
+                    label = "Avg heart rate",
+                    value = health.avgHeartRateBpm?.let { "$it bpm" } ?: "—"
+                )
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SkeletonBox(modifier = Modifier.fillMaxWidth(), height = 72.dp, corner = 20.dp)
+                SkeletonBox(modifier = Modifier.fillMaxWidth(), height = 72.dp, corner = 20.dp)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = if (viewModel.healthAvailable)
+                    "M2 · Health Connect permissions pending"
+                else
+                    "M2 · Health Connect not installed on this device",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "M2 · steps / distance / calories / heart rate",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun HealthStatCard(emoji: String, label: String, value: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = emoji, style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 

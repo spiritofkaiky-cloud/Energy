@@ -94,10 +94,7 @@ fun SignInScreen(
 
             EnergyButton(
                 text = "Continue with Google",
-                onClick = {
-                    // M5: run the CredentialManager Google flow, then pass the ID token.
-                    viewModel.signInWithGoogle(idToken = "not-yet-available")
-                },
+                onClick = { viewModel.signInWithGoogle() },
                 modifier = Modifier.fillMaxWidth(),
                 loading = state.loading
             )

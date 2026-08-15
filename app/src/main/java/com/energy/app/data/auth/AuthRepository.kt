@@ -9,10 +9,11 @@ data class AuthUser(
 
 interface AuthRepository {
     suspend fun signInAsGuest(): Result<AuthUser>
+    suspend fun signInAsGoogle(email: String?, name: String?): Result<AuthUser>
 
     /**
-     * Google Sign-In lands in M5 once the Supabase project + OAuth clients exist
-     * (APP_SPEC §10). The ID token arrives from the Android CredentialManager flow.
+     * Legacy seam — real Google flow lives in SignInViewModel
+     * (CredentialManager → Supabase). Kept for interface stability.
      */
     suspend fun signInWithGoogle(idToken: String): Result<AuthUser>
 
@@ -39,9 +40,20 @@ class GuestAuthRepository : AuthRepository {
     override suspend fun signInWithGoogle(idToken: String): Result<AuthUser> =
         Result.failure(
             UnsupportedOperationException(
-                "Google Sign-In arrives in M5 — it needs the Supabase project. Try guest mode!"
+                "Google Sign-In is driven by SignInViewModel via CredentialManager + Supabase."
             )
         )
+
+    override suspend fun signInAsGoogle(email: String?, name: String?): Result<AuthUser> {
+        val user = AuthUser(
+            id = "google",
+            name = name ?: "Google Runner",
+            email = email,
+            isGuest = false
+        )
+        this.user = user
+        return Result.success(user)
+    }
 
     override fun currentUser(): AuthUser? = user
 

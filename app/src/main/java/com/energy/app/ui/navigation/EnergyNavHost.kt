@@ -7,10 +7,17 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
+import com.energy.app.data.workout.WorkoutType
 import com.energy.app.ui.screens.auth.SignInScreen
+import com.energy.app.ui.screens.history.HistoryScreen
+import com.energy.app.ui.screens.history.WorkoutDetailScreen
+import com.energy.app.ui.screens.map.FullMapScreen
 import com.energy.app.ui.screens.splash.SplashScreen
+import com.energy.app.ui.screens.workout.LiveWorkoutScreen
 
 /**
  * Top-level navigation: Splash → Sign-In → Main.
@@ -50,7 +57,37 @@ fun EnergyNavHost(navController: NavHostController) {
                     navController.navigate(EnergyDestinations.SIGN_IN) {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onStartWorkout = { type ->
+                    navController.navigate(EnergyDestinations.workoutLive(type.name))
+                },
+                onOpenFullMap = {
+                    navController.navigate(EnergyDestinations.MAP_FULL)
+                },
+                onWorkoutClick = { id ->
+                    navController.navigate(EnergyDestinations.historyDetail(id))
                 }
+            )
+        }
+        composable(
+            route = EnergyDestinations.WORKOUT_LIVE,
+            arguments = listOf(navArgument("type") { type = NavType.StringType })
+        ) { entry ->
+            LiveWorkoutScreen(
+                typeName = entry.arguments?.getString("type") ?: WorkoutType.RUN.name,
+                onExit = { navController.popBackStack() }
+            )
+        }
+        composable(EnergyDestinations.MAP_FULL) {
+            FullMapScreen(onClose = { navController.popBackStack() })
+        }
+        composable(
+            route = EnergyDestinations.HISTORY_DETAIL,
+            arguments = listOf(navArgument("id") { type = NavType.StringType })
+        ) { entry ->
+            WorkoutDetailScreen(
+                workoutId = entry.arguments?.getString("id").orEmpty(),
+                onBack = { navController.popBackStack() }
             )
         }
     }

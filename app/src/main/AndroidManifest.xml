@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <application
         android:name=".EnergyApplication"
@@ -28,6 +30,11 @@
         <receiver
             android:name=".data.alarm.WorkoutAlarmReceiver"
             android:exported="false" />
+
+        <service
+            android:name=".data.workout.EnergyTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
 
 </manifest>

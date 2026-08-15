@@ -27,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.energy.app.data.workout.WorkoutType
 import com.energy.app.ui.screens.history.HistoryScreen
 import com.energy.app.ui.screens.home.HomeScreen
 import com.energy.app.ui.screens.profile.ProfileScreen
@@ -46,7 +47,12 @@ private val tabs = listOf(
  * tabs. APP_SPEC §5.4 bottom navigation.
  */
 @Composable
-fun MainScaffold(onSignedOut: () -> Unit) {
+fun MainScaffold(
+    onSignedOut: () -> Unit,
+    onStartWorkout: (WorkoutType) -> Unit,
+    onOpenFullMap: () -> Unit,
+    onWorkoutClick: (String) -> Unit
+) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
@@ -81,9 +87,9 @@ fun MainScaffold(onSignedOut: () -> Unit) {
             label = "tabContent"
         ) { tab ->
             when (tab) {
-                0 -> HomeScreen()
-                1 -> WorkoutScreen()
-                2 -> HistoryScreen()
+                0 -> HomeScreen(onOpenFullMap = onOpenFullMap)
+                1 -> WorkoutScreen(onStart = onStartWorkout)
+                2 -> HistoryScreen(onWorkoutClick = onWorkoutClick)
                 else -> ProfileScreen(onSignOut = onSignedOut)
             }
         }

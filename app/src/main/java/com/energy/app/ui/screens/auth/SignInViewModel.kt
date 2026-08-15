@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.energy.app.EnergyApplication
 import com.energy.app.data.auth.AuthRepository
 import com.energy.app.data.auth.AuthUser
+import com.energy.app.data.cloud.CloudRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,21 +20,45 @@ data class SignInUiState(
 
 class SignInViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: AuthRepository =
-        (application as EnergyApplication).container.authRepository
+    private val container = (application as EnergyApplication).container
+    private val repository: AuthRepository = container.authRepository
+    private val cloud: CloudRepository = container.cloudRepository
 
     private val _uiState = MutableStateFlow(SignInUiState())
     val uiState: StateFlow<SignInUiState> = _uiState.asStateFlow()
 
-    fun signInAsGuest() = launchSignIn { repository.signInAsGuest() }
+    fun signInAsGuest() = launchSignIn {
+        repository.signInAsGuest()
+    }
 
-    fun signInWithGoogle(idToken: String) = launchSignIn { repository.signInWithGoogle(idToken) }
+    /** Google flow: CredentialManager → ID token → Supabase (when configured) → local session. */
+    fun signInWithGoogle() {
+        viewModelScope.launch {
+            _uiState.value = SignInUiState(loading = true)
+            when (val result = container.googleSignInHelper.signIn()) {
+                is com.energy.app.data.auth.GoogleSignInResult.Success -> {
+                    if (cloud.isConfigured) {
+                        cloud.signInWithGoogle(result.idToken)
+                            .onFailure { e ->
+                                _uiState.value = SignInUiState(error = e.message)
+                                return@launch
+                            }
+                    }
+                    repository.signInAsGoogle(result.email, result.name)
+                        .onSuccess { _uiState.value = SignInUiState(signedIn = true) }
+                        .onFailure { e -> _uiState.value = SignInUiState(error = e.message) }
+                }
+                is com.energy.app.data.auth.GoogleSignInResult.Failure -> {
+                    _uiState.value = SignInUiState(error = result.message)
+                }
+            }
+        }
+    }
 
     private fun launchSignIn(block: suspend () -> Result<AuthUser>) {
         viewModelScope.launch {
             _uiState.value = SignInUiState(loading = true)
-            val result = block()
-            _uiState.value = result.fold(
+            _uiState.value = block().fold(
                 onSuccess = { SignInUiState(signedIn = true) },
                 onFailure = { e -> SignInUiState(error = e.message ?: "Something went wrong") }
             )

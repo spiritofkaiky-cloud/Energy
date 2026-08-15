@@ -22,6 +22,7 @@ import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
@@ -33,20 +34,30 @@ import org.maplibre.geojson.Point
 private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
 private const val ENERGY_ORANGE = "#FF7A1A"
+private const val ENERGY_CORAL = "#FF5F6D"
 
 /**
- * Strava-style map: draws the day's movement as a line.
- * MapLibre + OpenFreeMap = free forever, no API key. Dark style in dark mode.
+ * Strava-style map: draws the route as a line (speed-consistent color),
+ * optional pulsing current-position marker, full gesture support when
+ * [interactive] (a real, normal map). MapLibre + OpenFreeMap = free,
+ * no API key. Dark style in dark mode.
  */
 @Composable
 fun MapWidget(
     points: List<DayPoint>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    interactive: Boolean = true,
+    currentPosition: DayPoint? = null
 ) {
     val dark = LocalDarkTheme.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
+    var fittedOnce by remember { mutableStateOf(false) }
+    // Delta guards: skip redundant native layer updates (they leak on
+    // software renderers when called every recomposition).
+    var lastPointsHash by remember { mutableStateOf(points.hashCode()) }
+    var lastPosition by remember { mutableStateOf(currentPosition) }
 
     AndroidView(
         factory = { ctx ->
@@ -57,17 +68,22 @@ fun MapWidget(
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
                 getMapAsync { map ->
-                    map.uiSettings.isRotateGesturesEnabled = false
+                    map.uiSettings.isRotateGesturesEnabled = interactive
+                    map.uiSettings.isTiltGesturesEnabled = interactive
+                    map.uiSettings.isScrollGesturesEnabled = interactive
+                    map.uiSettings.isZoomGesturesEnabled = interactive
+                    map.uiSettings.isCompassEnabled = interactive
                     map.setStyle(if (dark) DARK_STYLE else LIGHT_STYLE) { style ->
                         ensurePathLayer(style, points)
+                        ensurePositionLayer(style)
                     }
-                    if (points.isEmpty()) {
+                    if (points.isEmpty() && currentPosition == null) {
                         map.cameraPosition = CameraPosition.Builder()
                             .target(LatLng(37.7749, -122.4194))
                             .zoom(12.0)
                             .build()
                     } else {
-                        fitBounds(map, points)
+                        fitBounds(map, points, currentPosition)
                     }
                     mapRef = map
                 }
@@ -76,9 +92,18 @@ fun MapWidget(
         },
         update = { _ ->
             mapRef?.let { map ->
+                val pointsChanged = points.hashCode() != lastPointsHash
+                val positionChanged = currentPosition != lastPosition
+                if (!pointsChanged && !positionChanged && fittedOnce) return@let
+                lastPointsHash = points.hashCode()
+                lastPosition = currentPosition
                 map.getStyle { style ->
-                    ensurePathLayer(style, points)
-                    if (points.size >= 2) fitBounds(map, points)
+                    if (pointsChanged) ensurePathLayer(style, points)
+                    if (positionChanged) updatePositionLayer(style, currentPosition)
+                    if (!fittedOnce && (points.size >= 2 || currentPosition != null)) {
+                        fittedOnce = true
+                        fitBounds(map, points, currentPosition)
+                    }
                 }
             }
         },
@@ -120,11 +145,57 @@ private fun ensurePathLayer(style: Style, points: List<DayPoint>) {
     }
 }
 
-private fun fitBounds(map: MapLibreMap, points: List<DayPoint>) {
-    if (points.size < 2) return
+private fun ensurePositionLayer(style: Style) {
+    if (style.getSourceAs<GeoJsonSource>("current-pos") != null) return
+    style.addSource(GeoJsonSource("current-pos"))
+    style.addLayer(
+        CircleLayer("current-pos-halo", "current-pos").withProperties(
+            PropertyFactory.circleRadius(16f),
+            PropertyFactory.circleColor(ENERGY_ORANGE),
+            PropertyFactory.circleOpacity(0.35f)
+        )
+    )
+    style.addLayer(
+        CircleLayer("current-pos-dot", "current-pos").withProperties(
+            PropertyFactory.circleRadius(8f),
+            PropertyFactory.circleColor("#FFFFFF"),
+            PropertyFactory.circleStrokeColor(ENERGY_ORANGE),
+            PropertyFactory.circleStrokeWidth(3f)
+        )
+    )
+}
+
+private fun updatePositionLayer(style: Style, currentPosition: DayPoint?) {
+    val source = style.getSourceAs<GeoJsonSource>("current-pos") ?: return
+    source.setGeoJson(
+        if (currentPosition == null) {
+            Feature.fromGeometry(LineString.fromLngLats(emptyList()))
+        } else {
+            Feature.fromGeometry(Point.fromLngLat(currentPosition.lng, currentPosition.lat))
+        }
+    )
+}
+
+private fun fitBounds(map: MapLibreMap, points: List<DayPoint>, currentPosition: DayPoint?) {
+    val all = buildList {
+        addAll(points)
+        currentPosition?.let { add(it) }
+    }
+    if (all.isEmpty()) return
+    if (all.size == 1) {
+        map.animateCamera(
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder()
+                    .target(LatLng(all[0].lat, all[0].lng))
+                    .zoom(15.0)
+                    .build()
+            ),
+            700
+        )
+        return
+    }
     val builder = LatLngBounds.Builder()
-    points.forEach { builder.include(LatLng(it.lat, it.lng)) }
-    val bounds = builder.build()
-    val camera = map.getCameraForLatLngBounds(bounds, intArrayOf(48, 48, 48, 48)) ?: return
+    all.forEach { builder.include(LatLng(it.lat, it.lng)) }
+    val camera = map.getCameraForLatLngBounds(builder.build(), intArrayOf(64, 64, 64, 64)) ?: return
     map.animateCamera(CameraUpdateFactory.newCameraPosition(camera), 700)
 }

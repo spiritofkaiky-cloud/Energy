@@ -12,20 +12,46 @@ The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
 | Milestone | What | Status |
 |-----------|------|--------|
 | M0 | Project scaffold, Gradle, wrapper | ✅ |
-| M1 | Design system, splash, Google sign-in UI + guest mode, tab navigation | ✅ |
-| M2 | Health Connect dashboard (steps / HR / rings) | ⏳ next |
-| M3 | Live GPS tracking + animated map path | ⏳ |
-| M4 | Workout summary + history | ⏳ |
-| M5 | Supabase sync + real Google sign-in | ⏳ |
-| M6 | Goals, achievements, streaks, notifications | 🟡 exercise alarm done |
-| M7 | Polish: dark mode audit, haptics, empty states | 🟡 theme switcher done |
+| M1 | Design system, splash, sign-in (Google + guest), tab navigation | ✅ |
+| M2 | Health Connect dashboard (steps / HR) with graceful degradation | ✅ |
+| M3 | Live GPS tracking + full-screen map + foreground service | ✅ |
+| M4 | Workout history + route detail + full-screen day map | ✅ |
+| M5 | Supabase cloud sync + Google sign-in (code ready — see ☁️ Cloud setup) | 🟡 needs your Supabase project |
+| M6 | Goals, achievements, streaks | 🟡 exercise alarm done |
+| M7 | Polish: theme switcher, haptics | 🟡 dark/light/system done |
 | M8 | Tests + Play Store release | ⏳ |
 
-### v0.2 extras (requested features)
-- 🌗 **Theme switcher** — System / Light / Dark, persisted (Profile → Appearance)
-- ⏰ **Exercise reminder** — daily alarm via `setAlarmClock`, notification on fire
-- 🗺️ **Today's Movement map** — Strava-style day-path line on Home (MapLibre + OpenFreeMap, free, no API key, dark map style in dark mode)
-- 📍 **Passive day tracking** — fused provider with automatic framework-GPS fallback (heals broken GMS state, works on GMS-free devices)
+### v0.3 features
+- 🏃 **Live workouts** — pick Run/Walk/Cycle/Hike, full-screen real map with the route drawing live, timer, pause/resume, finish summary (distance/time/pace/kcal), foreground-service notification
+- 🗺️ **Real map everywhere** — pan/zoom/rotate/compass, dark map in dark mode (MapLibre + OpenFreeMap, free, no API key)
+- 📚 **History** — saved workouts with route thumbnails → full route detail screen
+- ☁️ **Cloud-ready** — Supabase REST sync + Google sign-in via CredentialManager (see below)
+- ❤️ **Health Connect** — steps + heart rate on Home when available
+- 🌗 Theme switcher (System/Light/Dark) + ⏰ workout alarm (v0.2)
+
+## ☁️ Cloud setup (M5 — 10 minutes, free)
+
+1. **Supabase project** — create a free project at https://supabase.com → Settings → API → copy the **Project URL** and **anon public key**
+2. **Table** — in Supabase SQL Editor, run:
+   ```sql
+   create table public.workouts (
+     id uuid primary key default gen_random_uuid(),
+     user_id uuid references auth.users default auth.uid(),
+     payload jsonb not null,
+     created_at timestamptz default now()
+   );
+   alter table public.workouts enable row level security;
+   create policy "own workouts" on public.workouts
+     for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+   ```
+3. **Google sign-in** — Google Cloud Console → APIs & Services → Credentials → **Create OAuth client ID** → type **Web application** → copy the **Client ID**
+4. **Wire it up** — edit `local.properties` (never committed):
+   ```properties
+   supabase.url=https://YOURPROJECT.supabase.co
+   supabase.key=YOUR_ANON_KEY
+   google.clientId=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+   ```
+5. Rebuild: `gradlew.bat assembleDebug` — Google sign-in and workout cloud sync activate automatically. Without these keys the app runs perfectly local-only.
 
 ## Open in Android Studio
 
