@@ -55,6 +55,16 @@ class WorkoutMetaCodecTest {
     }
 
     @Test
+    fun `decodePoints clamps absurd speeds from legacy data`() {
+        val json = """{"v":1,"points":[{"lat":35.0,"lng":139.0,"t":0,"s":88540.6},{"lat":35.001,"lng":139.0,"t":4000,"s":-3.0},{"lat":35.002,"lng":139.0,"t":8000,"s":12.5}]}"""
+        val decoded = WorkoutMetaCodec.decodePoints(json)
+        assertNotNull(decoded)
+        assertEquals(130.0, decoded!![0].speedKmh, 0.001)
+        assertEquals(0.0, decoded[1].speedKmh, 0.001)
+        assertEquals(12.5, decoded[2].speedKmh, 0.001)
+    }
+
+    @Test
     fun `garbage input decodes to null or empty, never throws`() {
         assertNull(WorkoutMetaCodec.decode("not json at all"))
         assertNull(WorkoutMetaCodec.decode("{broken"))

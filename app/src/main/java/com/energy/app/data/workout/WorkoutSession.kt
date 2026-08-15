@@ -133,6 +133,7 @@ class WorkoutSession(
         _lastSavedWorkout.value = null
         startMillis = System.currentTimeMillis()
         pausedTotal = 0L
+        lastResumeAt = startMillis
         lastFixAt = 0L
         gotLiveFix = false
         acceptedSinceHeader = 0
@@ -325,7 +326,8 @@ class WorkoutSession(
             if (dt > 0) {
                 val d = GpsFilter.haversineMeters(prev.lat, prev.lng, lat, lng)
                 _distanceMeters.value = _distanceMeters.value + d
-                if (d > 0.5) segmentSpeed = d / (dt / 3_600_000.0)
+                // km/h: meters → km before dividing by hours.
+                if (d > 0.5) segmentSpeed = d / 1000.0 / (dt / 3_600_000.0)
             }
         }
         _maxSpeedKmh.value = maxOf(_maxSpeedKmh.value, segmentSpeed)
@@ -449,17 +451,26 @@ class WorkoutSession(
                     )
                 }
 
+                // Recover the recording time up to the last accepted fix.
+                // Wall-clock time while the process was dead is NOT counted —
+                // only GPS-backed time, so the total stays honest.
+                val wasRecording = header.optString("state") == WorkoutState.RECORDING.name
+                val resumeAt = header.optLong("lastResumeAt", 0L)
+                val fixAt = header.optLong("lastFixMillis", 0L)
+                val recovered = if (wasRecording && fixAt > resumeAt) fixAt - resumeAt else 0L
+                val totalElapsed = header.optLong("pausedTotal", 0L) + recovered
+
                 _type.value = type
                 _points.value = pts
                 _distanceMeters.value = distance
-                _elapsedMillis.value = header.optLong("pausedTotal", 0L)
+                _elapsedMillis.value = totalElapsed
                 _maxSpeedKmh.value = pts.maxOfOrNull { it.speedKmh } ?: 0.0
                 startMillis = header.optLong("start", 0L)
-                pausedTotal = header.optLong("pausedTotal", 0L)
+                pausedTotal = totalElapsed
                 lastResumeAt = header.optLong("lastResumeAt", 0L)
                 _state.value = WorkoutState.PAUSED
                 _restored.value = true
-                Log.i(TAG, "restored draft workout (${pts.size} points)")
+                Log.i(TAG, "restored draft workout (${pts.size} points, ${totalElapsed}ms)")
             } catch (e: Exception) {
                 Log.w(TAG, "draft restore failed — starting fresh", e)
                 clearDraftFiles()
@@ -479,7 +490,11 @@ class WorkoutSession(
                         lat = parts[0].toDouble(),
                         lng = parts[1].toDouble(),
                         timeMillis = parts[2].toLong(),
-                        speedKmh = parts[3].toDouble(),
+                        // Clamp: speeds above 130 km/h are garbage (GPS noise
+                        // or data written by older buggy builds). The route
+                        // geometry is what matters; a bogus speed number
+                        // must never surface in the UI.
+                        speedKmh = parts[3].toDouble().coerceIn(0.0, 130.0),
                         alt = parts.getOrNull(4)?.takeIf { it.isNotBlank() }?.toDouble()
                     )
                 }.getOrNull()

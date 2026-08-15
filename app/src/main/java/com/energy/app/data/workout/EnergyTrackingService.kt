@@ -44,10 +44,15 @@ class EnergyTrackingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val session = (application as EnergyApplication).container.workoutSession
+        // Satisfy the startForegroundService contract for EVERY action:
+        // any service started via startForegroundService must call
+        // startForeground() within ~5 s or the system kills the whole app
+        // (Android 12+). ACTION_STOP calls it too, then immediately removes
+        // itself from the foreground.
+        ensureChannel()
+        startForeground(NOTIFICATION_ID, buildNotification(session))
         when (intent?.action) {
             ACTION_START -> {
-                ensureChannel()
-                startForeground(NOTIFICATION_ID, buildNotification(session))
                 tickerJob?.cancel()
                 tickerJob = scope.launch {
                     session.elapsedMillis.collectLatest {

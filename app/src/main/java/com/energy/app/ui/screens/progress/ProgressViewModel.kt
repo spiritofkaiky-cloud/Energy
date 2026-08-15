@@ -78,7 +78,15 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
             val cutoff14 = System.currentTimeMillis() - 14 * 86_400_000L
             val recent = workouts.filter { it.startMillis >= cutoff14 }
-            val paceWorkouts = recent.filter { it.type == WorkoutType.RUN && it.distanceMeters > 500 }
+            // Only physiologically plausible runs count toward pace stats —
+            // degenerate workouts (test artifacts, GPS-less sessions) are
+            // excluded rather than averaged in.
+            val paceWorkouts = recent.filter {
+                it.type == WorkoutType.RUN &&
+                    it.distanceMeters > 500 &&
+                    it.durationMillis > 60_000 &&
+                    it.avgPaceMinPerKm in 0.5..120.0
+            }
 
             // Best month.
             val byMonth = workouts.groupBy {
@@ -108,10 +116,5 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             val workouts = container.workoutRepository.workouts.first()
             _data.value = _data.value.copy(lifetime = LifetimeStatsCalculator.compute(workouts))
         }
-    }
-
-    companion object {
-        fun paceText(secondsPerKm: Double?): String =
-            WorkoutMath.formatPace(secondsPerKm)
     }
 }

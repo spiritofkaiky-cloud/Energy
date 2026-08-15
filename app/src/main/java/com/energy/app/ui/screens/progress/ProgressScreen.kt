@@ -89,10 +89,11 @@ fun ProgressScreen(viewModel: ProgressViewModel = viewModel()) {
                     sub = "of 14"
                 )
             }
-            if (data.avgPace14 != null) {
+            val avgPace = data.avgPace14
+            if (avgPace != null) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Avg run pace (14d): ${WorkoutMath.formatPace(data.avgPace14)}",
+                    text = "Avg run pace (14d): ${WorkoutMath.formatPace(avgPace * 60)}",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.CenterHorizontally)

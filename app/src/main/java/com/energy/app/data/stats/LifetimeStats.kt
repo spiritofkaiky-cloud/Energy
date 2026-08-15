@@ -21,8 +21,11 @@ object LifetimeStatsCalculator {
             totalKm = workouts.sumOf { it.distanceMeters } / 1000.0,
             totalMinutes = workouts.sumOf { it.durationMillis } / 60_000L,
             bestPaceSecondsPerKm = workouts
-                .filter { it.type == WorkoutType.RUN && it.distanceMeters > 500 }
-                .mapNotNull { if (it.avgPaceMinPerKm > 0) it.avgPaceMinPerKm * 60 else null }
+                .filter {
+                    it.type == WorkoutType.RUN && it.distanceMeters > 500 &&
+                        it.durationMillis > 60_000 && it.avgPaceMinPerKm in 0.5..120.0
+                }
+                .mapNotNull { it.avgPaceMinPerKm * 60 }
                 .minOrNull(),
             longestKm = workouts.maxOfOrNull { it.distanceMeters }?.div(1000.0) ?: 0.0,
             totalCalories = workouts.sumOf { it.calories }

@@ -96,7 +96,9 @@ object WorkoutMetaCodec {
                         lat = o.getDouble("lat"),
                         lng = o.getDouble("lng"),
                         timeMillis = o.getLong("t"),
-                        speedKmh = o.getDouble("s"),
+                        // Sanitize: speeds above 130 km/h are artifacts of GPS
+                        // noise or legacy units bugs — never surface them.
+                        speedKmh = o.getDouble("s").coerceIn(0.0, 130.0),
                         alt = if (o.has("a")) o.getDouble("a") else null
                     )
                 }.getOrNull()

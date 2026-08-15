@@ -91,7 +91,7 @@ The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
 ```bash
 export JAVA_HOME="C:\Users\Adidi\jdk-21"   # Temurin 21 (AS JBR = JDK 25 breaks Kotlin 2.1.x)
 gradlew.bat clean
-gradlew.bat test          # 55 unit tests: GPS filter, PRs, score engine, codec, math
+gradlew.bat test          # 56 unit tests: GPS filter, PRs, score engine, codec, math
 gradlew.bat assembleDebug
 ```
 

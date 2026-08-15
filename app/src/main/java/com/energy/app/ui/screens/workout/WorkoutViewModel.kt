@@ -65,8 +65,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun togglePause(context: Context) {
-        if (session.state.value == WorkoutState.RECORDING) session.pause()
-        else if (session.state.value == WorkoutState.PAUSED) session.resume()
+        // The toggle itself happens in the service's ACTION_PAUSE handler —
+        // one single source of truth shared by the UI button and the
+        // notification action (a double-toggle would cancel itself out).
         startService(context, EnergyTrackingService.ACTION_PAUSE)
     }
 
