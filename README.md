@@ -19,7 +19,15 @@ The full build spec lives in [`../APP_SPEC.md`](../APP_SPEC.md).
 | M5 | Supabase cloud sync + Google sign-in (code ready — see ☁️ Cloud setup) | 🟡 needs your Supabase project |
 | M6 | Goals, achievements, streaks | ✅ streaks + achievements + workout alarm |
 | M7 | Polish: theme switcher, haptics | ✅ Oura-style polish (v0.3.1) |
-| M8 | Tests + Play Store release | ⏳ |
+| M8 | Tests + Play Store release | ✅ 13 unit tests green; Play Store pending |
+
+### v0.4 — Richness pass
+- 👤 **Accounts** — email+password sign-up/sign-in (Supabase) + Google linking; sign-in screen with Google/Email tabs
+- 🎛️ **More settings** — units (km/mi), battery saver, auto-pause, daily calorie goal, theme (System/Light/Dark), workout alarm
+- ✉️ **Help & Contact** — FAQ + one-tap email to the developer (Profile → Help & contact)
+- 🌌 **Living aurora background** — slow-drifting color blobs that adapt to light/dark themes (Instagram-style)
+- 🚀 **Speed tracker** — live km/h readout during workouts + max speed in summaries
+- 🧪 **Test suite** — 13 unit tests over the workout math (run: `gradlew test`)
 
 ### v0.3.1 — Oura-smooth design pass
 - 💯 **Energy Score** — Oura-style daily 0-100 gauge (steps + workout distance + day path), glowing arc with hero numeral

@@ -10,6 +10,8 @@ import com.energy.app.data.auth.AuthUser
 import com.energy.app.data.settings.AlarmSetting
 import com.energy.app.data.settings.SettingsRepository
 import com.energy.app.data.settings.ThemeMode
+import com.energy.app.data.settings.Units
+import com.energy.app.data.settings.UserPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +26,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     val user: AuthUser? = repository.currentUser()
     val streak: StateFlow<Int> = container.statsRepository.streak
+
+    val preferences: StateFlow<UserPreferences> = settings.preferences
+        .let { flow -> MutableStateFlow(UserPreferences()).also { s ->
+            viewModelScope.launch { flow.collect { s.value = it } }
+        } }
     val themeMode: StateFlow<ThemeMode> = settings.themeMode
         .let { flow -> MutableStateFlow(ThemeMode.SYSTEM).also { s ->
             viewModelScope.launch { flow.collect { s.value = it } }
@@ -38,6 +45,22 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settings.setThemeMode(mode) }
+    }
+
+    fun setUnits(units: Units) {
+        viewModelScope.launch { settings.setUnits(units) }
+    }
+
+    fun setBatterySaver(enabled: Boolean) {
+        viewModelScope.launch { settings.setBatterySaver(enabled) }
+    }
+
+    fun setAutoPause(enabled: Boolean) {
+        viewModelScope.launch { settings.setAutoPause(enabled) }
+    }
+
+    fun setCalorieGoal(goal: Int) {
+        viewModelScope.launch { settings.setCalorieGoal(goal) }
     }
 
     fun setAlarmEnabled(enabled: Boolean) {

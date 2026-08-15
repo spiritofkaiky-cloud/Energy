@@ -10,6 +10,7 @@ data class AuthUser(
 interface AuthRepository {
     suspend fun signInAsGuest(): Result<AuthUser>
     suspend fun signInAsGoogle(email: String?, name: String?): Result<AuthUser>
+    suspend fun signInWithEmail(email: String): Result<AuthUser>
 
     /**
      * Legacy seam — real Google flow lives in SignInViewModel
@@ -48,6 +49,17 @@ class GuestAuthRepository : AuthRepository {
         val user = AuthUser(
             id = "google",
             name = name ?: "Google Runner",
+            email = email,
+            isGuest = false
+        )
+        this.user = user
+        return Result.success(user)
+    }
+
+    override suspend fun signInWithEmail(email: String): Result<AuthUser> {
+        val user = AuthUser(
+            id = "email",
+            name = email.substringBefore("@").replaceFirstChar { it.uppercase() },
             email = email,
             isGuest = false
         )

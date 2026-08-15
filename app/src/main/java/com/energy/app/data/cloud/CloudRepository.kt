@@ -68,16 +68,60 @@ class CloudRepository {
                     body = body,
                     auth = false
                 )
-                val json = JSONObject(response)
-                accessToken = json.optString("access_token")
-                _state.value = CloudState(
-                    status = CloudStatus.SIGNED_OUT,
-                    userEmail = json.optJSONObject("user")?.optString("email")
-                )
+                applySession(JSONObject(response))
             }.onFailure { e ->
                 _state.value = CloudState(status = CloudStatus.ERROR, message = e.message)
             }
         }
+    }
+
+    /** Email + password account creation (Supabase built-in email provider). */
+    suspend fun signUpWithEmail(email: String, password: String): Result<Unit> =
+        emailAuth("/auth/v1/signup", email, password, extra = mapOf(
+            "data" to mapOf("full_name" to email.substringBefore("@"))
+        ))
+
+    /** Email + password sign-in. */
+    suspend fun signInWithEmail(email: String, password: String): Result<Unit> =
+        emailAuth("/auth/v1/token?grant_type=password", email, password)
+
+    private suspend fun emailAuth(
+        path: String,
+        email: String,
+        password: String,
+        extra: Map<String, Any> = emptyMap()
+    ): Result<Unit> {
+        if (!isConfigured) return Result.failure(
+            IllegalStateException("Cloud not configured (see README Cloud setup).")
+        )
+        _state.value = CloudState(status = CloudStatus.SIGNING_IN)
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val body = JSONObject()
+                    .put("email", email)
+                    .put("password", password)
+                    .apply { extra.forEach { (k, v) -> put(k, v) } }
+                    .toString()
+                val response = http(
+                    method = "POST",
+                    path = path,
+                    body = body,
+                    auth = false
+                )
+                applySession(JSONObject(response))
+            }.onFailure { e ->
+                _state.value = CloudState(status = CloudStatus.ERROR, message = e.message)
+            }
+        }
+    }
+
+    private fun applySession(json: JSONObject) {
+        accessToken = json.optString("access_token")
+        _state.value = CloudState(
+            status = CloudStatus.SIGNED_OUT,
+            userEmail = json.optJSONObject("user")?.optString("email")
+                ?: _state.value.userEmail
+        )
     }
 
     /** Push a workout JSON payload to the `workouts` table (RLS: user owns rows). */

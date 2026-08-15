@@ -65,6 +65,7 @@ fun LiveWorkoutScreen(
     val points by viewModel.points.collectAsState()
     val distance by viewModel.distanceMeters.collectAsState()
     val elapsed by viewModel.elapsedMillis.collectAsState()
+    val maxSpeed by viewModel.maxSpeedKmh.collectAsState()
 
     var summary by remember { mutableStateOf<SavedWorkout?>(null) }
 
@@ -105,6 +106,23 @@ fun LiveWorkoutScreen(
                 color = Color.White,
                 fontWeight = FontWeight.ExtraBold
             )
+            // Live speed readout — the "speed tracker" (updates every tick)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = String.format("%.1f km/h", viewModel.currentSpeedKmh),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = EnergyOrange,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "· max ${String.format("%.1f", maxSpeed)}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
         }
 
         // Bottom control sheet
@@ -193,6 +211,12 @@ fun LiveWorkoutScreen(
                             StatColumn(value = formatPace(w.durationMillis, w.distanceMeters), label = "Pace")
                             StatColumn(value = w.calories.toString(), label = "kcal")
                         }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Max speed ${String.format("%.1f", maxSpeed)} km/h",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Spacer(Modifier.height(20.dp))
                         TextButton(onClick = onExit) {
                             Text("Done", style = MaterialTheme.typography.titleMedium)

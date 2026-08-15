@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.energy.app.data.workout.WorkoutType
 import com.energy.app.ui.screens.auth.SignInScreen
+import com.energy.app.ui.screens.contact.ContactScreen
 import com.energy.app.ui.screens.history.HistoryScreen
 import com.energy.app.ui.screens.history.WorkoutDetailScreen
 import com.energy.app.ui.screens.map.FullMapScreen
@@ -66,6 +67,9 @@ fun EnergyNavHost(navController: NavHostController) {
                 },
                 onWorkoutClick = { id ->
                     navController.navigate(EnergyDestinations.historyDetail(id))
+                },
+                onOpenContact = {
+                    navController.navigate(EnergyDestinations.CONTACT)
                 }
             )
         }
@@ -80,6 +84,9 @@ fun EnergyNavHost(navController: NavHostController) {
         }
         composable(EnergyDestinations.MAP_FULL) {
             FullMapScreen(onClose = { navController.popBackStack() })
+        }
+        composable(EnergyDestinations.CONTACT) {
+            ContactScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = EnergyDestinations.HISTORY_DETAIL,

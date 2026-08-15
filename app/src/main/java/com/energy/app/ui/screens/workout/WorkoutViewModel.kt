@@ -24,6 +24,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val distanceMeters: StateFlow<Double> = session.distanceMeters
     val elapsedMillis: StateFlow<Long> = session.elapsedMillis
     val currentSpeedKmh: Double get() = session.currentSpeedKmh
+    val maxSpeedKmh: StateFlow<Double> = session.maxSpeedKmh
 
     /** Start (or resume existing) session + bring up the foreground service. */
     fun startWorkout(type: WorkoutType, context: Context) {

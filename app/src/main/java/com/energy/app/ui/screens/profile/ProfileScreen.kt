@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.energy.app.data.settings.ThemeMode
+import com.energy.app.data.settings.Units
 import com.energy.app.ui.components.EnergyButton
 import com.energy.app.ui.theme.EnergyCoral
 import com.energy.app.ui.theme.EnergyOrange
@@ -60,6 +62,7 @@ import com.energy.app.ui.theme.EnergyOrange
 @Composable
 fun ProfileScreen(
     onSignOut: () -> Unit,
+    onOpenContact: () -> Unit = {},
     viewModel: ProfileViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -185,6 +188,74 @@ fun ProfileScreen(
         }
         Spacer(Modifier.height(16.dp))
 
+        // ── Preferences ─────────────────────────────────────────────
+        val prefs by viewModel.preferences.collectAsState()
+        SettingsCard(title = "Preferences") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Units",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = prefs.units == Units.METRIC,
+                    onClick = { viewModel.setUnits(Units.METRIC) },
+                    label = { Text("km / kg") }
+                )
+                Spacer(Modifier.width(8.dp))
+                FilterChip(
+                    selected = prefs.units == Units.IMPERIAL,
+                    onClick = { viewModel.setUnits(Units.IMPERIAL) },
+                    label = { Text("mi / lb") }
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Battery saver", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = "Slower GPS updates while idle",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = prefs.batterySaver, onCheckedChange = { viewModel.setBatterySaver(it) })
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Auto-pause workouts", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = "Pause when you stop moving",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = prefs.autoPause, onCheckedChange = { viewModel.setAutoPause(it) })
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Daily calorie goal",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { viewModel.setCalorieGoal(prefs.calorieGoal - 50) }) {
+                    Text("−")
+                }
+                Text(
+                    text = "${prefs.calorieGoal} kcal",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                TextButton(onClick = { viewModel.setCalorieGoal(prefs.calorieGoal + 50) }) {
+                    Text("+")
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
         // ── Exercise reminder ───────────────────────────────────────
         SettingsCard(title = "Exercise reminder") {
             Row(
@@ -229,6 +300,11 @@ fun ProfileScreen(
             }
         }
         Spacer(Modifier.height(32.dp))
+
+        TextButton(onClick = onOpenContact, modifier = Modifier.fillMaxWidth()) {
+            Text("❓  Help & contact")
+        }
+        Spacer(Modifier.height(8.dp))
 
         EnergyButton(
             text = "Sign out",

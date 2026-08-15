@@ -70,6 +70,9 @@ class WorkoutSession(
     private var fallbackJob: Job? = null
     private var gotLiveFix = false
 
+    private val _maxSpeedKmh = MutableStateFlow(0.0)
+    val maxSpeedKmh: StateFlow<Double> = _maxSpeedKmh.asStateFlow()
+
     private val fusedCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             result.lastLocation?.let { onFix(it) }
@@ -93,6 +96,7 @@ class WorkoutSession(
         lastFixMillis = 0L
         lastLat = Double.NaN
         lastLng = Double.NaN
+        _maxSpeedKmh.value = 0.0
         gotLiveFix = false
         _state.value = WorkoutState.RECORDING
         startTicker()
@@ -206,6 +210,8 @@ class WorkoutSession(
         lastLng = lng
         lastSpeed = speed
         lastFixMillis = now
+        val instSpeed = currentSpeedKmh
+        _maxSpeedKmh.value = maxOf(_maxSpeedKmh.value, instSpeed)
         _points.value = _points.value + WorkoutPoint(lat, lng, now, speed)
     }
 

@@ -55,6 +55,29 @@ class SignInViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Email + password: create account or sign in (Supabase, when configured). */
+    fun signInWithEmail(email: String, password: String, createAccount: Boolean) {
+        viewModelScope.launch {
+            _uiState.value = SignInUiState(loading = true)
+            if (createAccount) {
+                cloud.signUpWithEmail(email, password)
+                    .onFailure { e ->
+                        _uiState.value = SignInUiState(error = e.message)
+                        return@launch
+                    }
+            } else {
+                cloud.signInWithEmail(email, password)
+                    .onFailure { e ->
+                        _uiState.value = SignInUiState(error = e.message)
+                        return@launch
+                    }
+            }
+            repository.signInWithEmail(email)
+                .onSuccess { _uiState.value = SignInUiState(signedIn = true) }
+                .onFailure { e -> _uiState.value = SignInUiState(error = e.message) }
+        }
+    }
+
     private fun launchSignIn(block: suspend () -> Result<AuthUser>) {
         viewModelScope.launch {
             _uiState.value = SignInUiState(loading = true)
