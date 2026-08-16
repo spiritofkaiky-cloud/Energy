@@ -20,9 +20,11 @@ val EnergySurfaceHigh = Color(0xFF1A1A24)     // elevated / interactive
 val EnergySurfaceMax = Color(0xFF23232E)      // hover/pressed, chips
 
 // ── Dark text (tonal hierarchy) ──────────────────────────────────────────
-val EnergyTextPrimary = Color(0xFFF5F5F7)
-val EnergyTextSecondary = Color(0x99F5F5F7)   // ~60%
-val EnergyTextTertiary = Color(0x5CF5F5F7)    // ~36%
+// Primary is pure white (19:1 contrast on EnergyBackground). Secondary and
+// tertiary are white at controlled opacities — never dark-on-dark.
+val EnergyTextPrimary = Color(0xFFFFFFFF)
+val EnergyTextSecondary = Color(0xCCFFFFFF)   // ~80%
+val EnergyTextTertiary = Color(0x80FFFFFF)    // ~50%
 
 // ── Hairlines / dividers ─────────────────────────────────────────────────
 val EnergyHairline = Color(0x12FFFFFF)        // subtle
