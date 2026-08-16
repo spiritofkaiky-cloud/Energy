@@ -20,7 +20,7 @@ fun AboutScreen(onBack: () -> Unit) {
     SettingsScaffold(title = "About", onBack = onBack) {
         SettingsSection(label = "Energy")
         Text(
-            text = "Version 0.6.2",
+            text = "Version 0.6.3",
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(Modifier.height(Space.XS))
