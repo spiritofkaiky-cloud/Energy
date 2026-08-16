@@ -12,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.energy.app.ui.theme.EnergyHairline
 
 /**
  * Oura-style card: near-black surface + hairline border, generous radius,
@@ -28,7 +27,8 @@ fun HairlineCard(
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, EnergyHairline, MaterialTheme.shapes.large)
+            // Theme-aware hairline (§6): outlineVariant adapts to both themes.
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.large)
             .padding(20.dp)
     ) {
         Column(content = content)

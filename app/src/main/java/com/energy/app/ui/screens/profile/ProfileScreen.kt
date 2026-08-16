@@ -268,7 +268,7 @@ fun ProfileScreen(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
-            text = "Energy 0.6.0 · local-first · MapLibre + OpenFreeMap",
+            text = "Energy 0.6.1 · local-first · MapLibre + OpenFreeMap",
             style = MetaLabel,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
